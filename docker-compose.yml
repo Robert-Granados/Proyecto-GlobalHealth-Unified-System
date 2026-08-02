@@ -1,0 +1,105 @@
+name: globalhealth
+
+services:
+  postgres-master:
+    image: postgres:16.4
+    container_name: globalhealth-postgres-master
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?Define POSTGRES_SUPERUSER_PASSWORD in .env}
+      POSTGRES_DB: globalhealth
+      APP_DB_USER: globalhealth_app
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:?Define REPLICATION_PASSWORD in .env}
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - wal_keep_size=256MB
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - listen_addresses=*
+    ports:
+      # Puerto del host configurable para evitar conflicto con PostgreSQL local.
+      - "${POSTGRES_MASTER_PORT:-55432}:5432"
+    volumes:
+      - postgres_master_data:/var/lib/postgresql/data
+      - ./infra/postgres/master/init-primary.sh:/docker-entrypoint-initdb.d/10-init-primary.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d globalhealth"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      data_net:
+        ipv4_address: 172.28.0.10
+
+  postgres-replica:
+    image: postgres:16.4
+    container_name: globalhealth-postgres-replica
+    restart: unless-stopped
+    depends_on:
+      postgres-master:
+        condition: service_healthy
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      PRIMARY_HOST: postgres-master
+      PRIMARY_PORT: "5432"
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:?Define REPLICATION_PASSWORD in .env}
+    entrypoint: ["/bin/bash", "/opt/globalhealth/replica-entrypoint.sh"]
+    ports:
+      - "${POSTGRES_REPLICA_PORT:-55433}:5432"
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+      - ./infra/postgres/replica/replica-entrypoint.sh:/opt/globalhealth/replica-entrypoint.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d globalhealth && psql -U postgres -d globalhealth -tAc 'SELECT pg_is_in_recovery()' | grep -qx t"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks:
+      data_net:
+        ipv4_address: 172.28.0.11
+
+  # MongoDB local para desarrollar la capa de telemetría. Atlas reemplazará
+  # MONGO_URL en despliegue; las credenciales reales nunca se versionan.
+  mongodb:
+    image: mongo:7.0
+    container_name: globalhealth-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD in .env}
+      MONGO_INITDB_DATABASE: globalhealth_telemetry
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - data_net
+
+networks:
+  data_net:
+    name: globalhealth_data_net
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  postgres_master_data:
+  postgres_replica_data:
+  mongo_data:
