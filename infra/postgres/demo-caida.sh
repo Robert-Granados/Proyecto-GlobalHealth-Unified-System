@@ -7,34 +7,62 @@ red='\033[0;31m'
 cyan='\033[0;36m'
 reset='\033[0m'
 
-echo -e "${cyan}GLOBALHEALTH — CHAOS DEMO (separación física read/write)${reset}"
-echo "DB_WRITE_URL -> postgres-master:5432"
-echo "DB_READ_URL  -> postgres-replica:5432"
+restore_master() {
+  docker compose start postgres-master >/dev/null 2>&1 || true
+}
+trap restore_master EXIT
 
-echo -e "\n${green}[ANTES] Lectura desde la réplica:${reset}"
-docker compose exec -T postgres-replica psql -U postgres -d globalhealth \
-  -c "SELECT count(*) AS lecturas_dashboard FROM demo_signos_vitales;"
+api_get() {
+  local path="$1"
+  docker compose exec -T api node -e "
+    fetch('http://localhost:8080${path}')
+      .then(async response => {
+        const body = await response.text();
+        console.log(body);
+        if (!response.ok) process.exit(1);
+      })
+      .catch(error => { console.error(error.message); process.exit(1); });
+  "
+}
 
-echo -e "\n${red}[CAOS] Deteniendo exclusivamente el master...${reset}"
+echo -e "${cyan}GLOBALHEALTH — CHAOS DEMO DESDE EL BACKEND${reset}"
+echo "writePool -> DB_WRITE_URL -> postgres-master:5432"
+echo "readPool  -> DB_READ_URL  -> postgres-replica:5432"
+echo "No existe fallback entre pools."
+
+echo -e "\n${green}[1/5] Topología verificada por la aplicación:${reset}"
+api_get /health
+
+echo -e "\n${green}[2/5] Dashboard leído mediante readPool:${reset}"
+api_get /api/dashboard/signos-vitales
+
+echo -e "\n${red}[3/5] Deteniendo exclusivamente el master...${reset}"
 docker compose stop postgres-master
-docker compose ps
+docker compose ps postgres-master postgres-replica api
 
-echo -e "\n${red}[WRITE POOL] La escritura debe fallar:${reset}"
-if docker compose exec -T postgres-replica sh -c \
-  "pg_isready --host=postgres-master --port=5432 --timeout=3 --dbname=globalhealth" \
-  >/dev/null 2>&1; then
-  echo "ERROR: el master respondió inesperadamente."
+echo -e "\n${red}[4/5] Endpoint de escritura: debe fallar con pool=WRITE_MASTER:${reset}"
+if docker compose exec -T api node -e "
+  fetch('http://localhost:8080/api/signos-vitales', {
+    method: 'POST',
+    headers: {'content-type': 'application/json'},
+    body: JSON.stringify({pacienteId: 9999, frecuenciaCardiaca: 82})
+  }).then(async response => {
+    const body = await response.text();
+    console.log(body);
+    process.exit(response.ok ? 0 : 1);
+  }).catch(error => { console.error(error.message); process.exit(1); });
+"; then
+  echo "ERROR: el endpoint escribió aunque el master estaba detenido." >&2
   exit 1
 else
-  echo "OK esperado: DB_WRITE_URL no está disponible."
+  echo "OK esperado: writePool no pudo llegar al master."
 fi
 
-echo -e "\n${green}[READ POOL] El dashboard continúa leyendo:${reset}"
-for vuelta in 1 2 3; do
-  docker compose exec -T postgres-replica psql -U postgres -d globalhealth -tAc \
-    "SELECT now() AS hora, count(*) AS filas FROM demo_signos_vitales;"
-  sleep 1
-done
+echo -e "\n${green}[5/5] Dashboard: debe seguir respondiendo desde readPool:${reset}"
+api_get /health/read
+api_get /api/dashboard/signos-vitales
 
-echo -e "\n${green}RESULTADO: master caído; réplica en hot standby sigue atendiendo SELECT.${reset}"
-echo "Recuperación: docker compose start postgres-master"
+echo -e "\n${green}RESULTADO: backend vivo, escritura caída y lectura disponible.${reset}"
+echo "Restaurando master..."
+restore_master
+trap - EXIT

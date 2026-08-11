@@ -1,0 +1,17 @@
+{
+  "name": "globalhealth-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend demostrativo con separación física master/réplica",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --check src/db.js && node --check src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

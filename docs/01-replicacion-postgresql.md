@@ -7,17 +7,21 @@ copia física inicial mediante `pg_basebackup -R` y luego recibe/aplica WAL por
 streaming. La réplica permanece en recuperación (`hot_standby`) y admite
 consultas de sólo lectura.
 
-La aplicación debe mantener dos pools independientes:
+La aplicación implementada en `api/src/db.js` mantiene dos pools independientes:
 
 ```dotenv
 DB_WRITE_URL=postgresql://globalhealth_app:CLAVE_APP@localhost:55432/globalhealth
 DB_READ_URL=postgresql://globalhealth_app:CLAVE_APP@localhost:55433/globalhealth
 ```
 
-Dentro de la red de Compose, una API usaría `postgres-master:5432` y
-`postgres-replica:5432`. No hay proxy, balanceador ni promoción automática.
+Dentro de la red de Compose, la API usa `postgres-master:5432` y
+`postgres-replica:5432`. No hay proxy, balanceador, fallback ni promoción automática.
 Que las lecturas sobrevivan no implica que las escrituras sobrevivan: ésa es
 precisamente la separación física que exige la rúbrica.
+
+Al arrancar, el proceso consulta `pg_is_in_recovery()` por ambos pools y aborta
+si el pool de escritura no llega al master, si el pool de lectura no llega a la
+réplica o si ambos resuelven la misma dirección física.
 
 ## Primera ejecución, en orden
 
