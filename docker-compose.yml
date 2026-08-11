@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?Define POSTGRES_SUPERUSER_PASSWORD in .env}
       POSTGRES_DB: globalhealth
-      APP_DB_USER: globalhealth_app
+      APP_DB_USER: ${APP_DB_USER:-globalhealth_app}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}
       REPLICATION_USER: replicator
       REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:?Define REPLICATION_PASSWORD in .env}
@@ -92,6 +92,80 @@ services:
     networks:
       - data_net
 
+  # SQL Server conserva el XSD como XML SCHEMA COLLECTION y valida dentro del
+  # motor cada asignación a la columna XML tipada.
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+    container_name: globalhealth-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "${MSSQL_PORT:-14333}:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" -b -o /dev/null
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+    networks:
+      data_net:
+        ipv4_address: 172.28.0.12
+
+  # Trabajo de inicialización desechable: ejecuta los scripts T-SQL en orden y
+  # termina. Los XML inválidos se envían a la columna tipada para que SQL Server
+  # produzca y registre los errores exactos.
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+    container_name: globalhealth-sqlserver-init
+    restart: "no"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD in .env}
+    entrypoint: ["/bin/bash", "/opt/globalhealth/init-xml.sh"]
+    volumes:
+      - ./infra/sqlserver/init-xml.sh:/opt/globalhealth/init-xml.sh:ro
+      - ./xml/sqlserver:/scripts:ro
+    networks:
+      - data_net
+
+  # Backend real con dos pools físicos. No existe fallback entre conexiones:
+  # escritura apunta al master y dashboard a la réplica hot-standby.
+  api:
+    build:
+      context: ./api
+    container_name: globalhealth-api
+    restart: unless-stopped
+    depends_on:
+      postgres-master:
+        condition: service_healthy
+      postgres-replica:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DB_WRITE_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-master:5432/globalhealth
+      DB_READ_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-replica:5432/globalhealth
+    ports:
+      - "${API_PORT:-8080}:8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "fetch('http://localhost:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 5s
+      timeout: 4s
+      retries: 20
+    networks:
+      data_net:
+        ipv4_address: 172.28.0.20
+
 networks:
   data_net:
     name: globalhealth_data_net
@@ -103,3 +177,4 @@ volumes:
   postgres_master_data:
   postgres_replica_data:
   mongo_data:
+  sqlserver_data:
