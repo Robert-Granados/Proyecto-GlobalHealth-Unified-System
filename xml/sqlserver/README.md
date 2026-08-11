@@ -15,8 +15,12 @@ El segundo comando termina con código `0` solo si pasan los scripts 01 a 06.
 Los tres mensajes de XML inválido y el error de `DROP` se consultan así:
 
 ```powershell
-docker compose exec sqlserver bash -lc `
-  '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d GlobalHealthXml -Q "SELECT Categoria,Caso,ErrorNumero,MensajeExacto FROM dbo.PruebaRechazoXML ORDER BY PruebaId"'
+$saPassword = (Get-Content .env |
+  Where-Object { $_ -like 'MSSQL_SA_PASSWORD=*' }).Split('=', 2)[1]
+
+docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd `
+  -S localhost -U sa -P $saPassword -C -d GlobalHealthXml `
+  -Q "SELECT Categoria,Caso,ErrorNumero,MensajeExacto FROM dbo.PruebaRechazoXML ORDER BY PruebaId"
 ```
 
 La validación de referencia se ejecutó en SQL Server 2022 RTM-CU26,
