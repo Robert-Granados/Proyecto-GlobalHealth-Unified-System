@@ -24,8 +24,8 @@ Con el contenedor principal del proyecto ya iniciado:
 $archivos = Get-ChildItem .\mor\postgresql\0[1-6]_*.sql | Sort-Object Name
 foreach ($archivo in $archivos) {
     Get-Content -Raw $archivo.FullName |
-        docker compose exec -T postgres-master \
-            psql -v ON_ERROR_STOP=1 -U postgres -d globalhealth
+        docker compose exec -T postgres-master psql `
+            -v ON_ERROR_STOP=1 -U postgres -d globalhealth
     if ($LASTEXITCODE -ne 0) { throw "Falló $($archivo.Name)" }
 }
 ```
