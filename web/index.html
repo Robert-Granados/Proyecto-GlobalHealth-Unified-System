@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GlobalHealth · Panel Clínico</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">GH</span>
+      <div>
+        <h1>GlobalHealth Unified System</h1>
+        <p class="subtitle">CR · GT · PA · panel de demostración</p>
+      </div>
+    </div>
+    <nav class="topnav">
+      <button id="btn-refresh" class="btn ghost" type="button">Actualizar</button>
+      <button id="btn-health" class="btn ghost" type="button">Estado pools</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <!-- Columna izquierda: topología -->
+    <section class="card topology">
+      <header class="card-head">
+        <h2>Separación física de pools</h2>
+        <span id="physically-separated-badge" class="badge badge-neutral">--</span>
+      </header>
+
+      <div class="pool-grid">
+        <article class="pool-card write">
+          <header>
+            <span class="pool-tag">WRITE_MASTER</span>
+            <h3>Postgres Master</h3>
+          </header>
+          <dl id="writer-dl">
+            <dt>Dirección</dt><dd data-key="serverAddress">--</dd>
+            <dt>Puerto</dt><dd data-key="serverPort">--</dd>
+            <dt>Base datos</dt><dd data-key="database">--</dd>
+            <dt>En recovery</dt><dd data-key="inRecovery">--</dd>
+            <dt>Aplicación</dt><dd data-key="applicationName">--</dd>
+          </dl>
+        </article>
+
+        <article class="pool-card read">
+          <header>
+            <span class="pool-tag">READ_REPLICA</span>
+            <h3>Postgres Réplica</h3>
+          </header>
+          <dl id="reader-dl">
+            <dt>Dirección</dt><dd data-key="serverAddress">--</dd>
+            <dt>Puerto</dt><dd data-key="serverPort">--</dd>
+            <dt>Base datos</dt><dd data-key="database">--</dd>
+            <dt>En recovery</dt><dd data-key="inRecovery">--</dd>
+            <dt>Aplicación</dt><dd data-key="applicationName">--</dd>
+          </dl>
+        </article>
+      </div>
+
+      <p id="topology-message" class="hint">Pulsa “Estado pools” para verificar la separación física.</p>
+    </section>
+
+    <!-- Columna derecha: dashboard signos vitales -->
+    <section class="card dashboard">
+      <header class="card-head">
+        <h2>Signos vitales · últimos 20</h2>
+        <span id="vitals-pool-tag" class="badge badge-info">READ_REPLICA</span>
+      </header>
+
+      <div class="table-wrap">
+        <table id="vitals-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Paciente</th>
+              <th>FC (lpm)</th>
+              <th>Registrado</th>
+            </tr>
+          </thead>
+          <tbody id="vitals-body">
+            <tr class="empty-row"><td colspan="4">Sin datos — pulsa Actualizar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Sección inferior: registro de nuevos signos -->
+    <section class="card register">
+      <header class="card-head">
+        <h2>Registrar signos vitales</h2>
+        <span class="badge badge-warn">WRITE_MASTER</span>
+      </header>
+
+      <form id="vitals-form" class="form-row" autocomplete="off">
+        <label class="field">
+          <span>ID paciente</span>
+          <input type="number" name="pacienteId" min="1" step="1" required placeholder="1001" />
+        </label>
+        <label class="field">
+          <span>Frecuencia cardíaca (20–250)</span>
+          <input type="number" name="frecuenciaCardiaca" min="20" max="250" step="1" required placeholder="78" />
+        </label>
+        <button type="submit" class="btn primary" id="btn-submit">Guardar</button>
+      </form>
+      <p id="register-message" class="hint">&nbsp;</p>
+    </section>
+
+    <!-- Footer informativo -->
+    <footer class="app-footer">
+      <span><span class="dot dot-on"></span> Escritura → master</span>
+      <span><span class="dot dot-off"></span> Lectura → réplica</span>
+      <span>Sin fallback entre pools</span>
+    </footer>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

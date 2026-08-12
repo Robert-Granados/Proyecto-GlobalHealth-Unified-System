@@ -15,6 +15,20 @@ Arquitectura híbrida para clínicas de Costa Rica, Guatemala y Panamá:
 - [Backend read/write](api/README.md)
 - [Replicación PostgreSQL](docs/01-replicacion-postgresql.md)
 
+## Interfaz gráfica (panel web)
+
+Se añadió un contenedor `web` (nginx) que sirve un panel en
+`http://localhost:${WEB_PORT:-8090}` y actúa como reverse proxy hacia `api`,
+reemplazando la prueba por consola (`Invoke-RestMethod`/`curl`). El backend Node
+no fue modificado: conserva sus rutas intactas y sigue exponiendo los mismos
+endpoints (`/health`, `/health/read`, `/api/dashboard/signos-vitales`,
+`/api/signos-vitales`).
+
+```powershell
+docker compose up -d --build
+# Abrir http://localhost:8090
+```
+
 ## Inicio local
 
 ```powershell
