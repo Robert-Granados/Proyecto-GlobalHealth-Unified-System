@@ -1,6 +1,7 @@
 'use strict';
 
 const { Pool } = require('pg');
+const sql = require('mssql');
 
 function requiredEnvironment(name) {
   const value = process.env[name];
@@ -130,8 +131,43 @@ function queryRead(text, parameters = []) {
   return readPool.query(text, parameters);
 }
 
+// Conexión perezosa a SQL Server (capa XML). No forma parte de la topología
+// master/réplica: se crea en la primera petición de expedientes para que la
+// API pueda arrancar aunque el motor XML todavía no esté listo. Si el intento
+// falla, la promesa se descarta y la siguiente petición reintenta.
+let xmlPoolPromise = null;
+
+function getXmlPool() {
+  if (!xmlPoolPromise) {
+    const connectionString = process.env.MSSQL_URL;
+    if (!connectionString) {
+      return Promise.reject(new Error('Falta la variable MSSQL_URL'));
+    }
+    const pool = new sql.ConnectionPool(connectionString);
+    xmlPoolPromise = pool.connect()
+      .then(() => pool)
+      .catch((error) => {
+        xmlPoolPromise = null;
+        throw error;
+      });
+  }
+  return xmlPoolPromise;
+}
+
+async function queryXml(text, inputs = {}) {
+  const pool = await getXmlPool();
+  const request = pool.request();
+  for (const [name, spec] of Object.entries(inputs)) {
+    request.input(name, spec.type, spec.value);
+  }
+  return request.query(text);
+}
+
 async function closePools() {
-  await Promise.allSettled([writePool.end(), readPool.end()]);
+  const xmlClose = xmlPoolPromise
+    ? xmlPoolPromise.then((pool) => pool.close()).catch(() => {})
+    : Promise.resolve();
+  await Promise.allSettled([writePool.end(), readPool.end(), xmlClose]);
 }
 
 module.exports = {
@@ -140,7 +176,9 @@ module.exports = {
   inspectPool,
   queryRead,
   queryWrite,
+  queryXml,
   readPool,
+  sql,
   verifyPhysicalSeparation,
   waitForReplica,
   writePool

@@ -9,15 +9,34 @@
 <body>
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark">GH</span>
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path class="pulse-path" d="M2.5 12h4l2.2-7 4.4 14 2.2-7h6" />
+        </svg>
+      </span>
       <div>
         <h1>GlobalHealth Unified System</h1>
-        <p class="subtitle">CR · GT · PA · panel de demostración</p>
+        <p class="subtitle">Costa Rica · Guatemala · Panamá</p>
       </div>
     </div>
     <nav class="topnav">
-      <button id="btn-refresh" class="btn ghost" type="button">Actualizar</button>
-      <button id="btn-health" class="btn ghost" type="button">Estado pools</button>
+      <span id="last-updated" class="updated" title="Última actualización"></span>
+      <a class="btn ghost" href="explicacion.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M9.5 9.3a2.5 2.5 0 1 1 3.4 2.33c-.8.3-.9 1-.9 1.87"/><circle cx="12" cy="17.2" r="0.4" fill="currentColor"/></svg>
+        Guía
+      </a>
+      <button id="btn-health" class="btn ghost" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>
+        Estado pools
+      </button>
+      <button id="btn-refresh" class="btn primary" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3v4h-4"/></svg>
+        Actualizar
+      </button>
     </nav>
   </header>
 
@@ -25,15 +44,22 @@
     <!-- Columna izquierda: topología -->
     <section class="card topology">
       <header class="card-head">
-        <h2>Separación física de pools</h2>
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/><path d="M4 11.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>
+          Separación física de pools
+        </h2>
         <span id="physically-separated-badge" class="badge badge-neutral">--</span>
       </header>
 
       <div class="pool-grid">
         <article class="pool-card write">
           <header>
-            <span class="pool-tag">WRITE_MASTER</span>
-            <h3>Postgres Master</h3>
+            <div class="pool-title">
+              <span class="pool-tag">WRITE_MASTER</span>
+              <h3>Postgres Master</h3>
+            </div>
+            <span class="pool-dot" aria-hidden="true"></span>
           </header>
           <dl id="writer-dl">
             <dt>Dirección</dt><dd data-key="serverAddress">--</dd>
@@ -46,8 +72,11 @@
 
         <article class="pool-card read">
           <header>
-            <span class="pool-tag">READ_REPLICA</span>
-            <h3>Postgres Réplica</h3>
+            <div class="pool-title">
+              <span class="pool-tag">READ_REPLICA</span>
+              <h3>Postgres Réplica</h3>
+            </div>
+            <span class="pool-dot" aria-hidden="true"></span>
           </header>
           <dl id="reader-dl">
             <dt>Dirección</dt><dd data-key="serverAddress">--</dd>
@@ -65,7 +94,11 @@
     <!-- Columna derecha: dashboard signos vitales -->
     <section class="card dashboard">
       <header class="card-head">
-        <h2>Signos vitales · últimos 20</h2>
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M20.4 8.6a5 5 0 0 0-8.4-3.6 5 5 0 0 0-8.4 3.6c0 5 8.4 10.4 8.4 10.4s8.4-5.4 8.4-10.4Z"/><path d="M7 12h2.5l1.5-3 2.5 6 1.5-3H17"/></svg>
+          Signos vitales · últimos 20
+        </h2>
         <span id="vitals-pool-tag" class="badge badge-info">READ_REPLICA</span>
       </header>
 
@@ -75,7 +108,7 @@
             <tr>
               <th>ID</th>
               <th>Paciente</th>
-              <th>FC (lpm)</th>
+              <th>Frec. cardíaca</th>
               <th>Registrado</th>
             </tr>
           </thead>
@@ -89,7 +122,11 @@
     <!-- Sección inferior: registro de nuevos signos -->
     <section class="card register">
       <header class="card-head">
-        <h2>Registrar signos vitales</h2>
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Registrar signos vitales
+        </h2>
         <span class="badge badge-warn">WRITE_MASTER</span>
       </header>
 
@@ -99,19 +136,176 @@
           <input type="number" name="pacienteId" min="1" step="1" required placeholder="1001" />
         </label>
         <label class="field">
-          <span>Frecuencia cardíaca (20–250)</span>
+          <span>Frecuencia cardíaca (20–250 lpm)</span>
           <input type="number" name="frecuenciaCardiaca" min="20" max="250" step="1" required placeholder="78" />
         </label>
-        <button type="submit" class="btn primary" id="btn-submit">Guardar</button>
+        <button type="submit" class="btn primary" id="btn-submit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+          Guardar
+        </button>
       </form>
       <p id="register-message" class="hint">&nbsp;</p>
+    </section>
+
+    <!-- Médicos: modelo objeto-relacional -->
+    <section class="card medicos">
+      <header class="card-head">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v4a4 4 0 0 0 8 0V3"/><path d="M6 3h4M14 3h4"/><path d="M12 11v4"/><circle cx="12" cy="18" r="3"/></svg>
+          Médicos · modelo objeto-relacional
+        </h2>
+        <span id="medicos-pool-tag" class="badge badge-info">READ_REPLICA</span>
+      </header>
+
+      <div class="split">
+        <div class="split-col">
+          <h3 class="mini-title">
+            Registrar médico
+            <span class="badge badge-warn">WRITE_MASTER</span>
+          </h3>
+          <form id="medico-form" class="form-grid" autocomplete="off">
+            <label class="field">
+              <span>Nombres</span>
+              <input type="text" name="nombres" required placeholder="María Fernanda" maxlength="100" />
+            </label>
+            <label class="field">
+              <span>Primer apellido</span>
+              <input type="text" name="primerApellido" required placeholder="Jiménez" maxlength="70" />
+            </label>
+            <label class="field">
+              <span>Segundo apellido (opcional)</span>
+              <input type="text" name="segundoApellido" placeholder="Vargas" maxlength="70" />
+            </label>
+            <label class="field">
+              <span>Identificación</span>
+              <input type="text" name="identificacion" required placeholder="1-2345-6789" maxlength="32" />
+            </label>
+            <label class="field">
+              <span>Fecha de nacimiento</span>
+              <input type="date" name="fechaNacimiento" required />
+            </label>
+            <label class="field">
+              <span>País de colegiatura</span>
+              <select name="pais" required>
+                <option value="CR">Costa Rica</option>
+                <option value="GT">Guatemala</option>
+                <option value="PA">Panamá</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Número de colegiado</span>
+              <input type="text" name="numeroColegiado" required placeholder="MED-99999" maxlength="32" />
+            </label>
+            <label class="field">
+              <span>Especialidad</span>
+              <input type="text" name="especialidad" required placeholder="Cardiología" maxlength="100" />
+            </label>
+            <label class="field">
+              <span>Correo</span>
+              <input type="email" name="correo" required placeholder="medico@globalhealth.example" maxlength="254" />
+            </label>
+            <label class="field">
+              <span>Teléfono móvil</span>
+              <input type="text" name="telefono" required placeholder="88881234" maxlength="8" />
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="btn primary" id="btn-medico">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                     stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                Guardar médico
+              </button>
+            </div>
+          </form>
+          <p id="medico-message" class="hint">El INSERT construye tipos compuestos (<code>ROW(...)::direccion_t</code>, <code>contacto_t</code>, array de <code>especialidad_t</code>) y las reglas del motor los validan.</p>
+        </div>
+
+        <div class="split-col">
+          <h3 class="mini-title">Registrados · tabla hija de <code>empleado_base</code></h3>
+          <div class="table-wrap">
+            <table id="medicos-table">
+              <thead>
+                <tr>
+                  <th>Médico</th>
+                  <th>Colegiado</th>
+                  <th>País</th>
+                  <th>Especialidades</th>
+                  <th>Clínica</th>
+                </tr>
+              </thead>
+              <tbody id="medicos-body">
+                <tr class="empty-row"><td colspan="5">Sin datos — pulsa Actualizar.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Expediente XML: validación dentro de SQL Server -->
+    <section class="card expediente">
+      <header class="card-head">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></svg>
+          Expediente clínico XML
+        </h2>
+        <span id="exp-pool-tag" class="badge badge-sql">SQL_SERVER_XML</span>
+      </header>
+
+      <div class="split">
+        <div class="split-col">
+          <h3 class="mini-title">Enviar expediente · el XSD vive en el motor</h3>
+          <div class="preset-row">
+            <button type="button" class="btn ghost sm" data-preset="valido">Ejemplo válido</button>
+            <button type="button" class="btn ghost sm" data-preset="sin-firma">Sin firma médica</button>
+            <button type="button" class="btn ghost sm" data-preset="fecha-mala">Fecha inválida</button>
+          </div>
+          <form id="exp-form" autocomplete="off">
+            <label class="field codigo-field">
+              <span>Código del expediente</span>
+              <input type="text" id="exp-codigo" name="codigo" required maxlength="20" placeholder="EXP-WEB-0001" />
+            </label>
+            <label class="field">
+              <span>Documento XML</span>
+              <textarea id="exp-xml" name="xml" rows="15" required spellcheck="false"></textarea>
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="btn primary" id="btn-exp">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                     stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                Insertar en SQL Server
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="split-col">
+          <h3 class="mini-title">Respuesta del motor</h3>
+          <div id="exp-result" class="exp-result neutral">
+            Envía un expediente para ver cómo SQL Server lo acepta o lo rechaza con el error exacto del XSD.
+          </div>
+          <h3 class="mini-title">Últimos expedientes aceptados</h3>
+          <div class="table-wrap">
+            <table id="exp-table">
+              <thead>
+                <tr><th>ID</th><th>Código</th><th>Creado</th></tr>
+              </thead>
+              <tbody id="exp-body">
+                <tr class="empty-row"><td colspan="3">Sin datos — pulsa Actualizar.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Footer informativo -->
     <footer class="app-footer">
       <span><span class="dot dot-on"></span> Escritura → master</span>
       <span><span class="dot dot-off"></span> Lectura → réplica</span>
-      <span>Sin fallback entre pools</span>
+      <span class="footer-note">Sin fallback entre pools</span>
     </footer>
   </main>
 

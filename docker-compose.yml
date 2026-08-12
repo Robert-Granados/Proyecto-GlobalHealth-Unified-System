@@ -153,6 +153,8 @@ services:
       PORT: "8080"
       DB_WRITE_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-master:5432/globalhealth
       DB_READ_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-replica:5432/globalhealth
+      # Capa XML: conexión perezosa a SQL Server (solo la usan /api/expedientes*).
+      MSSQL_URL: Server=sqlserver,1433;Database=GlobalHealthXml;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD in .env};Encrypt=true;TrustServerCertificate=true;Connection Timeout=5
     ports:
       - "${API_PORT:-8080}:8080"
     healthcheck:

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GlobalHealth · Qué es y cómo funciona</title>
+<style>
+  :root{
+    --ink:#1b2333; --muted:#5c6575; --bg:#f5f7fa; --card:#ffffff;
+    --line:#e2e8f0; --accent:#2563eb;
+    --pg:#336791; --sql:#b02a30; --mongo:#3f9142; --node:#3c873a; --nginx:#0a7d3b;
+    --warn:#b45309; --ok:#15803d;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.6;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:0 20px 64px}
+
+  /* ---------- Header ---------- */
+  header.hero{
+    padding:48px 0 28px; border-bottom:1px solid var(--line); margin-bottom:36px;
+  }
+  .eyebrow{
+    display:inline-block; font-size:.78rem; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--accent); margin-bottom:10px;
+  }
+  h1{font-size:2rem; line-height:1.2; margin-bottom:10px}
+  .lead{font-size:1.08rem; color:var(--muted); max-width:760px}
+  .flags{margin-top:14px; display:flex; gap:8px; flex-wrap:wrap}
+  .flag{
+    font-size:.8rem; font-weight:600; padding:3px 12px; border-radius:999px;
+    background:#fff; border:1px solid var(--line); color:var(--muted);
+  }
+
+  /* ---------- Sections ---------- */
+  section{margin-bottom:44px}
+  h2{font-size:1.35rem; margin-bottom:6px; display:flex; align-items:center; gap:10px}
+  h2 .num{
+    flex:0 0 auto; width:28px; height:28px; border-radius:8px; font-size:.85rem;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:var(--accent); color:#fff; font-weight:700;
+  }
+  .sub{color:var(--muted); margin-bottom:18px; max-width:760px}
+
+  /* ---------- Cards ---------- */
+  .grid{display:grid; gap:14px}
+  .grid.cols-2{grid-template-columns:repeat(2,1fr)}
+  .grid.cols-4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:860px){ .grid.cols-4{grid-template-columns:repeat(2,1fr)} }
+  @media(max-width:640px){ .grid.cols-2,.grid.cols-4{grid-template-columns:1fr} }
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:18px; box-shadow:0 1px 2px rgba(16,24,40,.04);
+  }
+  .card h3{font-size:1rem; margin-bottom:6px; display:flex; align-items:center; gap:8px}
+  .card p{font-size:.92rem; color:var(--muted)}
+  .tag{
+    display:inline-block; font-size:.68rem; font-weight:800; letter-spacing:.05em;
+    padding:2px 8px; border-radius:6px; color:#fff;
+  }
+  .tag.pg{background:var(--pg)} .tag.sql{background:var(--sql)}
+  .tag.mongo{background:var(--mongo)} .tag.node{background:var(--node)}
+  .tag.nginx{background:var(--nginx)}
+
+  /* ---------- Diagrama ---------- */
+  .diagram{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:24px; overflow-x:auto;
+  }
+  .drow{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px}
+  .drow:last-child{margin-bottom:0}
+  .dlabel{
+    flex:0 0 130px; font-size:.75rem; font-weight:700; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted);
+  }
+  .node{
+    border:1.5px solid var(--line); border-radius:10px; padding:10px 14px;
+    background:#fbfcfe; min-width:150px;
+  }
+  .node b{display:block; font-size:.9rem}
+  .node span{font-size:.75rem; color:var(--muted)}
+  .node.write{border-color:var(--pg); background:#eef4f9}
+  .node.read{border-color:#7aa5c4; background:#f4f8fb}
+  .node.sqlx{border-color:var(--sql); background:#faf0f0}
+  .node.mgx{border-color:var(--mongo); background:#f0f7f0}
+  .arrow{color:#9aa5b5; font-weight:700; font-size:1.1rem}
+  .wal{
+    border:1.5px dashed #7aa5c4; border-radius:10px; padding:8px 12px;
+    font-size:.78rem; color:var(--pg); font-weight:600; background:#fff;
+  }
+
+  /* ---------- Tabs / flujos ---------- */
+  .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px}
+  .tab{
+    border:1px solid var(--line); background:#fff; color:var(--muted);
+    font:inherit; font-size:.88rem; font-weight:600; padding:8px 16px;
+    border-radius:999px; cursor:pointer;
+  }
+  .tab.active{background:var(--ink); border-color:var(--ink); color:#fff}
+  .flow{display:none}
+  .flow.active{display:block}
+  ol.steps{list-style:none; counter-reset:paso}
+  ol.steps li{
+    counter-increment:paso; position:relative; padding:12px 0 12px 46px;
+    border-bottom:1px dashed var(--line); font-size:.95rem;
+  }
+  ol.steps li:last-child{border-bottom:none}
+  ol.steps li::before{
+    content:counter(paso); position:absolute; left:0; top:12px;
+    width:28px; height:28px; border-radius:50%; background:#eef2ff;
+    color:var(--accent); font-weight:700; font-size:.85rem;
+    display:flex; align-items:center; justify-content:center;
+  }
+  ol.steps b{color:var(--ink)}
+  code{
+    font-family:Consolas,"Courier New",monospace; font-size:.86em;
+    background:#eef1f6; border:1px solid var(--line); border-radius:5px; padding:1px 6px;
+  }
+  .callout{
+    margin-top:14px; border-left:4px solid var(--warn); background:#fffbeb;
+    border-radius:0 10px 10px 0; padding:12px 16px; font-size:.9rem; color:#7c4a03;
+  }
+  .callout.ok{border-color:var(--ok); background:#f0fdf4; color:#14532d}
+
+  /* ---------- Controles ---------- */
+  .control{display:flex; gap:12px}
+  .control .ico{
+    flex:0 0 auto; width:34px; height:34px; border-radius:9px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; font-size:.8rem; color:#fff;
+  }
+  .control h3{font-size:.98rem; margin-bottom:2px}
+  .control p{font-size:.88rem; color:var(--muted)}
+
+  /* ---------- Comandos ---------- */
+  pre{
+    background:#0f172a; color:#e2e8f0; border-radius:12px; padding:18px 20px;
+    font-family:Consolas,"Courier New",monospace; font-size:.86rem; line-height:1.7;
+    overflow-x:auto;
+  }
+  pre .c{color:#64748b}
+
+  /* ---------- Endpoints / footer ---------- */
+  table{width:100%; border-collapse:collapse; font-size:.9rem; background:#fff;
+    border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--line)}
+  th{background:#f8fafc; font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  footer{margin-top:40px; padding-top:20px; border-top:1px solid var(--line);
+    font-size:.85rem; color:var(--muted); display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap}
+  footer a{color:var(--accent); text-decoration:none; font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===================== HERO ===================== -->
+  <header class="hero">
+    <span class="eyebrow">Guía rápida del proyecto</span>
+    <h1>GlobalHealth Unified System</h1>
+    <p class="lead">
+      Una <b>arquitectura híbrida de bases de datos</b> para una corporación de
+      clínicas. Cada tecnología guarda un tipo de dato distinto y cada una hace
+      el trabajo para el que es mejor.
+    </p>
+    <div class="flags">
+      <span class="flag">🇨🇷 Costa Rica</span>
+      <span class="flag">🇬🇹 Guatemala</span>
+      <span class="flag">🇵🇦 Panamá</span>
+      <span class="flag">Todo en Docker</span>
+    </div>
+  </header>
+
+  <!-- ===================== 1. QUÉ ES ===================== -->
+  <section>
+    <h2><span class="num">1</span> ¿Qué es?</h2>
+    <p class="sub">
+      Es el sistema de datos de una red de clínicas: guarda pacientes, empleados,
+      signos vitales, expedientes clínicos y telemetría de dispositivos. No usa
+      una sola base de datos: usa <b>cuatro motores especializados</b> detrás de
+      una sola API.
+    </p>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3><span class="tag pg">PostgreSQL 16</span> Datos clínicos estructurados</h3>
+        <p>Clínicas, pacientes, médicos y enfermeros con un <b>modelo
+        objeto-relacional</b> (tipos compuestos, herencia de tablas, identidad
+        UUID). Corre en <b>dos nodos</b>: un master que escribe y una réplica
+        que solo lee.</p>
+      </div>
+      <div class="card">
+        <h3><span class="tag sql">SQL Server 2022</span> Expedientes en XML</h3>
+        <p>Los expedientes clínicos viajan como <b>XML validado contra un XSD
+        registrado dentro del motor</b>. Si el XML es inválido, la propia base
+        de datos lo rechaza con el error exacto.</p>
+      </div>
+      <div class="card">
+        <h3><span class="tag mongo">MongoDB</span> Telemetría</h3>
+        <p>Datos de sensores y dispositivos médicos: alta frecuencia de escritura
+        y esquema flexible de documentos.</p>
+      </div>
+      <div class="card">
+        <h3><span class="tag node">Node.js API</span> La puerta de entrada</h3>
+        <p>Un backend pequeño con <b>dos conexiones físicas separadas</b>:
+        una exclusiva para escribir en el master y otra exclusiva para leer de
+        la réplica. <b>Sin fallback</b> entre ellas.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 2. ARQUITECTURA ===================== -->
+  <section>
+    <h2><span class="num">2</span> ¿Cómo se conecta todo?</h2>
+    <p class="sub">
+      El usuario solo ve el panel web. Detrás, nginx reparte las peticiones a la
+      API y la API decide a qué motor y a qué nodo va cada operación.
+    </p>
+    <div class="diagram">
+      <div class="drow">
+        <span class="dlabel">Usuario</span>
+        <div class="node"><b>Panel web (nginx)</b><span>puerto 8090 · interfaz + proxy</span></div>
+        <span class="arrow">→</span>
+        <div class="node"><b>API Node.js</b><span>puerto 8080 · 2 pools físicos</span></div>
+      </div>
+      <div class="drow">
+        <span class="dlabel">Escritura</span>
+        <div class="node write"><b>PostgreSQL master</b><span>:55432 · acepta INSERT/UPDATE</span></div>
+        <span class="arrow">⇢</span>
+        <div class="wal">replicación streaming WAL</div>
+        <span class="arrow">⇢</span>
+        <div class="node read"><b>PostgreSQL réplica</b><span>:55433 · hot-standby, solo lectura</span></div>
+      </div>
+      <div class="drow">
+        <span class="dlabel">Lectura</span>
+        <div class="node read"><b>Dashboard</b><span>consulta siempre a la réplica</span></div>
+      </div>
+      <div class="drow">
+        <span class="dlabel">Otros datos</span>
+        <div class="node sqlx"><b>SQL Server</b><span>:14333 · expedientes XML + XSD</span></div>
+        <div class="node mgx"><b>MongoDB</b><span>:27017 · telemetría</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 3. FLUJOS ===================== -->
+  <section>
+    <h2><span class="num">3</span> ¿Cómo funciona? Tres flujos</h2>
+    <p class="sub">El recorrido completo de un dato, paso a paso.</p>
+
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-flow="f1" type="button">A · Registrar un dato</button>
+      <button class="tab" data-flow="f2" type="button">B · Leer el dashboard</button>
+      <button class="tab" data-flow="f3" type="button">C · Validar un expediente XML</button>
+      <button class="tab" data-flow="f4" type="button">D · Registrar un médico</button>
+    </div>
+
+    <div class="flow active" id="f1">
+      <div class="card">
+        <ol class="steps">
+          <li>El usuario llena el formulario <b>“Registrar signos vitales”</b> en el panel.</li>
+          <li>El navegador envía <code>POST /api/signos-vitales</code> a nginx, que lo reenvía a la API.</li>
+          <li>La ruta llama <b>exclusivamente</b> a <code>queryWrite</code> → <code>writePool</code>.</li>
+          <li>El <code>INSERT</code> se ejecuta en el <b>master</b> de PostgreSQL.</li>
+          <li>El master escribe el cambio en su <b>WAL</b> (bitácora física).</li>
+          <li>La réplica recibe el WAL por <b>streaming</b> y lo aplica: el dato ya se puede leer.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="flow" id="f2">
+      <div class="card">
+        <ol class="steps">
+          <li>El panel pide <code>GET /api/dashboard/signos-vitales</code>.</li>
+          <li>La ruta llama <b>exclusivamente</b> a <code>queryRead</code> → <code>readPool</code>.</li>
+          <li>El <code>SELECT</code> se ejecuta en la <b>réplica hot-standby</b>, nunca en el master.</li>
+          <li>El master queda libre de consultas: solo atiende escrituras.</li>
+        </ol>
+        <div class="callout">
+          <b>Sin fallback:</b> si la réplica cae, la lectura falla de forma visible.
+          El sistema <b>no</b> se reconecta al master “para salvar la consulta”:
+          esa separación física es un requisito del diseño, no un descuido.
+        </div>
+      </div>
+    </div>
+
+    <div class="flow" id="f3">
+      <div class="card">
+        <ol class="steps">
+          <li>Desde el panel (sección <b>“Expediente clínico XML”</b>) se envía el documento a
+              <code>POST /api/expedientes</code>.</li>
+          <li>La API lo inserta tal cual en la columna
+              <code>Documento xml(dbo.ExpedienteClinicoXsd)</code> — no valida nada por su cuenta.</li>
+          <li><b>SQL Server</b> valida contra el XSD registrado: patrones de cédula y CIE-10,
+              enumeraciones de país/severidad, fechas, firma médica obligatoria, hasta 20 diagnósticos…</li>
+          <li>Si algo no cumple, el motor <b>rechaza el insert</b> y la API devuelve
+              <code>422</code> con el número y mensaje exactos del motor
+              (ej. <i>6908 · Expected element: FirmaMedico</i>), que el panel muestra en rojo.</li>
+        </ol>
+        <div class="callout ok">
+          La aplicación <b>no</b> contiene ninguna librería de validación XSD:
+          la fuente de autoridad es la propia base de datos. Los botones de preset
+          (“Sin firma médica”, “Fecha inválida”) permiten ver los rechazos en vivo.
+        </div>
+      </div>
+    </div>
+
+    <div class="flow" id="f4">
+      <div class="card">
+        <ol class="steps">
+          <li>El formulario <b>“Registrar médico”</b> del panel envía
+              <code>POST /api/medicos</code> con los datos básicos.</li>
+          <li>La API construye el <code>INSERT</code> a <code>gh_obj.medico_t</code> —tabla hija de
+              <code>empleado_base</code> por <code>INHERITS</code>— armando los tipos compuestos:
+              <code>ROW(...)::direccion_t</code>, <code>contacto_t</code> con su array de teléfonos
+              y el array de <code>especialidad_t</code>.</li>
+          <li>El <b>master</b> valida dominios y <code>CHECK</code> (identificación, correo, colegiado,
+              mayoría de edad…); si algo falla responde <code>400</code>/<code>409</code> con el nombre
+              de la restricción.</li>
+          <li>El WAL viaja a la réplica y la tabla del panel —que lee con
+              <code>GET /api/medicos</code> desde la réplica— muestra al nuevo médico usando el
+              método <code>nombre_completo(medico_t)</code>.</li>
+        </ol>
+        <div class="callout ok">
+          El <code>objeto_oid</code> (UUID) es la identidad lógica del objeto y
+          <code>clinica_ref</code> se asigna a la clínica del país elegido: es la
+          referencia (REF) del modelo objeto-relacional.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 4. CONTROLES ===================== -->
+  <section>
+    <h2><span class="num">4</span> Controles críticos del diseño</h2>
+    <p class="sub">Las reglas que el sistema se obliga a cumplir al arrancar y en cada operación.</p>
+    <div class="grid cols-2">
+      <div class="card control">
+        <span class="ico" style="background:var(--pg)">PG</span>
+        <div>
+          <h3>Separación física verificada</h3>
+          <p>Al arrancar, la API exige <code>pg_is_in_recovery()=false</code> en el pool de
+          escritura y <code>=true</code> en el de lectura, y que ambos resuelvan
+          <b>direcciones físicas distintas</b>. Si no, el proceso aborta.</p>
+        </div>
+      </div>
+      <div class="card control">
+        <span class="ico" style="background:var(--warn)">!</span>
+        <div>
+          <h3>Sin fallback ni promoción</h3>
+          <p>No hay proxy, balanceador ni reintento cruzado. Que las lecturas
+          sobrevivan a una caída no implica que las escrituras sobrevivan.</p>
+        </div>
+      </div>
+      <div class="card control">
+        <span class="ico" style="background:var(--sql)">XML</span>
+        <div>
+          <h3>Validación dentro del motor</h3>
+          <p>El XSD vive en SQL Server como <code>XML SCHEMA COLLECTION</code>.
+          Cualquier asignación a la columna tipada —incluido XML DML— se valida
+          contra el esquema registrado.</p>
+        </div>
+      </div>
+      <div class="card control">
+        <span class="ico" style="background:var(--node)">OR</span>
+        <div>
+          <h3>Modelo objeto-relacional real</h3>
+          <p>Tablas tipadas (<code>OF tipo</code>), herencia con <code>INHERITS</code>
+          para médicos y enfermeros, dominios, y <b>UUID</b> como identidad de objeto
+          estable.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 5. EJECUCIÓN ===================== -->
+  <section>
+    <h2><span class="num">5</span> ¿Cómo se levanta?</h2>
+    <p class="sub">Cuatro pasos desde la raíz del repositorio (Windows, PowerShell).</p>
+    <pre><span class="c">:: 1. Crear el archivo de secretos (cambiar las contraseñas)</span>
+Copy-Item .env.example .env
+
+<span class="c">:: 2. Levantar todos los contenedores</span>
+docker compose up -d --build
+
+<span class="c">:: 3. Inicializar la capa XML en SQL Server (una sola vez)</span>
+docker compose run --rm sqlserver-init
+
+<span class="c">:: 4. Verificar la separación master/réplica del backend</span>
+.\infra\postgres\validar-backend.ps1</pre>
+    <div class="callout ok">
+      Panel funcional en <code>http://localhost:8090</code> ·
+      esta explicación en <code>http://localhost:8090/explicacion.html</code>
+    </div>
+  </section>
+
+  <!-- ===================== 6. ENDPOINTS ===================== -->
+  <section>
+    <h2><span class="num">6</span> Endpoints de la API</h2>
+    <p class="sub">Las únicas cuatro rutas del backend, y qué pool usa cada una.</p>
+    <table>
+      <thead><tr><th>Ruta</th><th>Método</th><th>Pool que la atiende</th></tr></thead>
+      <tbody>
+        <tr><td><code>/health</code></td><td>GET</td><td>Comprueba <b>ambos</b> pools y reporta si están físicamente separados</td></tr>
+        <tr><td><code>/health/read</code></td><td>GET</td><td>Réplica (readPool)</td></tr>
+        <tr><td><code>/api/dashboard/signos-vitales</code></td><td>GET</td><td>Réplica (readPool)</td></tr>
+        <tr><td><code>/api/signos-vitales</code></td><td>POST</td><td>Master (writePool)</td></tr>
+        <tr><td><code>/api/medicos</code></td><td>GET</td><td>Réplica (readPool) · usa el método <code>nombre_completo(medico_t)</code></td></tr>
+        <tr><td><code>/api/medicos</code></td><td>POST</td><td>Master (writePool) · construye los tipos compuestos del INSERT</td></tr>
+        <tr><td><code>/api/expedientes</code></td><td>GET</td><td>SQL Server · lista los expedientes aceptados</td></tr>
+        <tr><td><code>/api/expedientes</code></td><td>POST</td><td>SQL Server · el motor valida el XSD y responde el error exacto</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <span>GlobalHealth Unified System · arquitectura híbrida PostgreSQL · SQL Server · MongoDB · Node.js</span>
+    <a href="index.html">Ir al panel de demostración →</a>
+  </footer>
+</div>
+
+<script>
+  // Navegación por pestañas de los flujos (lo único interactivo de la página).
+  document.querySelectorAll('.tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.flow').forEach(function (f) { f.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.flow).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

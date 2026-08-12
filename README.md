@@ -19,15 +19,23 @@ Arquitectura híbrida para clínicas de Costa Rica, Guatemala y Panamá:
 
 Se añadió un contenedor `web` (nginx) que sirve un panel en
 `http://localhost:${WEB_PORT:-8090}` y actúa como reverse proxy hacia `api`,
-reemplazando la prueba por consola (`Invoke-RestMethod`/`curl`). El backend Node
-no fue modificado: conserva sus rutas intactas y sigue exponiendo los mismos
-endpoints (`/health`, `/health/read`, `/api/dashboard/signos-vitales`,
-`/api/signos-vitales`).
+reemplazando la prueba por consola (`Invoke-RestMethod`/`curl`). El panel
+demuestra en vivo los cuatro recorridos: signos vitales (master/réplica),
+médicos del modelo objeto-relacional (INSERT con tipos compuestos y herencia)
+y expedientes XML validados por SQL Server con el error exacto del motor.
+Endpoints: `/health`, `/health/read`, `/api/dashboard/signos-vitales`,
+`/api/signos-vitales`, `/api/medicos`, `/api/expedientes` (ver
+[api/README.md](api/README.md)).
 
 ```powershell
 docker compose up -d --build
 # Abrir http://localhost:8090
 ```
+
+Además, `web/explicacion.html` es una página estática y autocontenida que explica
+qué es el proyecto y cómo funciona (arquitectura, flujos y controles críticos).
+Se puede abrir directamente con doble clic o en
+`http://localhost:8090/explicacion.html` cuando el stack está arriba.
 
 ## Inicio local
 
