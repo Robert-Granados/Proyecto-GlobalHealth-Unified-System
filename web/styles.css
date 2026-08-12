@@ -427,6 +427,7 @@ tbody tr:last-child td { border-bottom: none; }
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 24px 28px 28px;
 }
 .medicos .split-col:first-child > .mini-title,
 .medicos #medico-form,
@@ -440,6 +441,10 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .medicos #medico-form .form-actions {
   justify-content: center;
+}
+.medicos #medico-form {
+  padding: 8px 4px 4px;
+  row-gap: 16px;
 }
 
 @media (max-width: 1180px) and (min-width: 921px) {
