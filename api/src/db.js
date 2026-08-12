@@ -2,6 +2,7 @@
 
 const { Pool } = require('pg');
 const sql = require('mssql');
+const { MongoClient } = require('mongodb');
 
 function requiredEnvironment(name) {
   const value = process.env[name];
@@ -136,6 +137,7 @@ function queryRead(text, parameters = []) {
 // API pueda arrancar aunque el motor XML todavía no esté listo. Si el intento
 // falla, la promesa se descarta y la siguiente petición reintenta.
 let xmlPoolPromise = null;
+let mongoClientPromise = null;
 
 function getXmlPool() {
   if (!xmlPoolPromise) {
@@ -163,17 +165,86 @@ async function queryXml(text, inputs = {}) {
   return request.query(text);
 }
 
+function getMongoDatabase() {
+  if (!mongoClientPromise) {
+    let connectionString = process.env.ATLAS_MONGO_URL || process.env.MONGO_URL;
+    if (!connectionString) return Promise.reject(new Error('Falta la variable MONGO_URL'));
+    // Atlas entrega normalmente mongodb+srv. Se tolera el esquema mongodb
+    // cuando el host termina en mongodb.net para corregir copias incompletas.
+    if (connectionString.startsWith('mongodb://') && connectionString.includes('.mongodb.net')) {
+      connectionString = connectionString.replace(/^mongodb:\/\//, 'mongodb+srv://');
+    }
+    const client = new MongoClient(connectionString, { serverSelectionTimeoutMS: 3000 });
+    mongoClientPromise = client.connect()
+      .then(() => client)
+      .catch((error) => {
+        mongoClientPromise = null;
+        throw error;
+      });
+  }
+  return mongoClientPromise.then((client) => client.db('globalhealth_telemetry'));
+}
+
+async function inspectMongo() {
+  const database = await getMongoDatabase();
+  await database.command({ ping: 1 });
+  const [pacientes, sesiones, logs] = await Promise.all([
+    database.collection('pacientes').countDocuments(),
+    database.collection('sesiones').countDocuments(),
+    database.collection('logs').countDocuments()
+  ]);
+  return {
+    provider: process.env.ATLAS_MONGO_URL ? 'MONGODB_ATLAS' : 'MONGODB_LOCAL',
+    database: database.databaseName,
+    pacientes,
+    sesiones,
+    logs
+  };
+}
+
+async function mongoTelemetrySummary() {
+  const database = await getMongoDatabase();
+  return database.collection('logs').aggregate([
+    { $match: { calidad: 'VALIDA' } },
+    { $group: {
+      _id: '$tipo', total: { $sum: 1 }, promedio: { $avg: '$valor' },
+      minimo: { $min: '$valor' }, maximo: { $max: '$valor' }
+    } },
+    { $sort: { total: -1 } }
+  ]).toArray();
+}
+
+async function mongoPatientTrace(patientId) {
+  const database = await getMongoDatabase();
+  const rows = await database.collection('pacientes').aggregate([
+    { $match: { pacienteId: patientId } },
+    { $lookup: { from: 'sesiones', localField: 'pacienteId', foreignField: 'pacienteId', as: 'sesiones' } },
+    { $unwind: '$sesiones' },
+    { $sort: { 'sesiones.iniciadaEn': -1 } },
+    { $limit: 1 },
+    { $lookup: { from: 'logs', localField: 'sesiones.sesionId', foreignField: 'sesionId', as: 'logs' } },
+    { $project: { _id: 0, pacienteId: 1, identificacion: 1, pais: 1, sesion: '$sesiones', logs: { $slice: ['$logs', 20] } } }
+  ]).toArray();
+  return rows[0] || null;
+}
+
 async function closePools() {
   const xmlClose = xmlPoolPromise
     ? xmlPoolPromise.then((pool) => pool.close()).catch(() => {})
     : Promise.resolve();
-  await Promise.allSettled([writePool.end(), readPool.end(), xmlClose]);
+  const mongoClose = mongoClientPromise
+    ? mongoClientPromise.then((client) => client.close()).catch(() => {})
+    : Promise.resolve();
+  await Promise.allSettled([writePool.end(), readPool.end(), xmlClose, mongoClose]);
 }
 
 module.exports = {
   closePools,
   ensureDemoData,
   inspectPool,
+  inspectMongo,
+  mongoPatientTrace,
+  mongoTelemetrySummary,
   queryRead,
   queryWrite,
   queryXml,

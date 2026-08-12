@@ -92,6 +92,100 @@ services:
     networks:
       - data_net
 
+  mongodb-init:
+    image: mongo:7.0
+    container_name: globalhealth-mongodb-init
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD in .env}
+    entrypoint:
+      - /bin/bash
+      - -c
+      - >-
+        mongosh --quiet "mongodb://root:$${MONGO_ROOT_PASSWORD}@mongodb:27017/globalhealth_telemetry?authSource=admin"
+        --file /scripts/01_modelo_y_datos.js &&
+        mongosh --quiet "mongodb://root:$${MONGO_ROOT_PASSWORD}@mongodb:27017/globalhealth_telemetry?authSource=admin"
+        --file /scripts/02_consultas.js
+    volumes:
+      - ./nosql/mongodb:/scripts:ro
+    networks:
+      - data_net
+
+  postgres-norte:
+    image: postgres:16.4
+    container_name: globalhealth-postgres-norte
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?Define POSTGRES_SUPERUSER_PASSWORD in .env}
+      POSTGRES_DB: globalhealth_fragmento
+    ports:
+      - "${POSTGRES_NORTE_PORT:-55434}:5432"
+    volumes:
+      - postgres_norte_data:/var/lib/postgresql/data
+      - ./infra/fragmentacion/norte:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d globalhealth_fragmento"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      data_net:
+        ipv4_address: 172.28.0.13
+
+  postgres-sur:
+    image: postgres:16.4
+    container_name: globalhealth-postgres-sur
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?Define POSTGRES_SUPERUSER_PASSWORD in .env}
+      POSTGRES_DB: globalhealth_fragmento
+    ports:
+      - "${POSTGRES_SUR_PORT:-55435}:5432"
+    volumes:
+      - postgres_sur_data:/var/lib/postgresql/data
+      - ./infra/fragmentacion/sur:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d globalhealth_fragmento"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      data_net:
+        ipv4_address: 172.28.0.14
+
+  postgres-coordinador:
+    image: postgres:16.4
+    container_name: globalhealth-postgres-coordinador
+    restart: unless-stopped
+    depends_on:
+      postgres-norte:
+        condition: service_healthy
+      postgres-sur:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?Define POSTGRES_SUPERUSER_PASSWORD in .env}
+      POSTGRES_DB: globalhealth_distribuida
+      FRAGMENT_DB_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?Define POSTGRES_SUPERUSER_PASSWORD in .env}
+    ports:
+      - "${POSTGRES_COORDINADOR_PORT:-55436}:5432"
+    volumes:
+      - postgres_coordinador_data:/var/lib/postgresql/data
+      - ./infra/fragmentacion/coordinador:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d globalhealth_distribuida"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      data_net:
+        ipv4_address: 172.28.0.15
+
   # SQL Server conserva el XSD como XML SCHEMA COLLECTION y valida dentro del
   # motor cada asignación a la columna XML tipada.
   sqlserver:
@@ -149,12 +243,16 @@ services:
         condition: service_healthy
       postgres-replica:
         condition: service_healthy
+      mongodb-init:
+        condition: service_completed_successfully
     environment:
       PORT: "8080"
       DB_WRITE_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-master:5432/globalhealth
       DB_READ_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-replica:5432/globalhealth
       # Capa XML: conexión perezosa a SQL Server (solo la usan /api/expedientes*).
       MSSQL_URL: Server=sqlserver,1433;Database=GlobalHealthXml;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD in .env};Encrypt=true;TrustServerCertificate=true;Connection Timeout=5
+      MONGO_URL: mongodb://root:${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD in .env}@mongodb:27017/globalhealth_telemetry?authSource=admin
+      ATLAS_MONGO_URL: ${ATLAS_MONGO_URL:-}
     ports:
       - "${API_PORT:-8080}:8080"
     healthcheck:
@@ -201,3 +299,6 @@ volumes:
   postgres_replica_data:
   mongo_data:
   sqlserver_data:
+  postgres_norte_data:
+  postgres_sur_data:
+  postgres_coordinador_data:

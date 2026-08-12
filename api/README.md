@@ -16,6 +16,9 @@ dashboard llama únicamente `queryRead`.
 |---|---|
 | `GET /health` | comprueba ambos |
 | `GET /health/read` | réplica |
+| `GET /health/mongo` | MongoDB y conteos de colecciones |
+| `GET /api/telemetria/resumen` | agregación MongoDB |
+| `GET /api/telemetria/paciente/:id` | `$lookup` Paciente → Sesión → Logs |
 | `GET /api/dashboard/signos-vitales` | réplica |
 | `POST /api/signos-vitales` | master |
 | `GET /api/medicos` | réplica |

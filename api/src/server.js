@@ -5,6 +5,9 @@ const {
   closePools,
   ensureDemoData,
   inspectPool,
+  inspectMongo,
+  mongoPatientTrace,
+  mongoTelemetrySummary,
   queryRead,
   queryWrite,
   queryXml,
@@ -71,6 +74,39 @@ async function handler(request, response) {
       return sendJson(response, 200, { ok: true, reader });
     } catch (error) {
       return sendJson(response, 503, publicError(error, 'READ_REPLICA'));
+    }
+  }
+
+  if (request.method === 'GET' && url.pathname === '/health/mongo') {
+    try {
+      return sendJson(response, 200, { ok: true, mongo: await inspectMongo() });
+    } catch (error) {
+      return sendJson(response, 503, publicError(error, 'MONGODB_TELEMETRY'));
+    }
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/telemetria/resumen') {
+    try {
+      return sendJson(response, 200, {
+        ok: true, motor: 'MONGODB', rows: await mongoTelemetrySummary()
+      });
+    } catch (error) {
+      return sendJson(response, 503, publicError(error, 'MONGODB_TELEMETRY'));
+    }
+  }
+
+  if (request.method === 'GET' && url.pathname.startsWith('/api/telemetria/paciente/')) {
+    const patientId = Number.parseInt(url.pathname.split('/').pop(), 10);
+    if (!Number.isInteger(patientId) || patientId < 1) {
+      return sendJson(response, 400, { ok: false, message: 'pacienteId debe ser un entero positivo' });
+    }
+    try {
+      const row = await mongoPatientTrace(patientId);
+      return row
+        ? sendJson(response, 200, { ok: true, motor: 'MONGODB_LOOKUP', row })
+        : sendJson(response, 404, { ok: false, message: 'Paciente no encontrado' });
+    } catch (error) {
+      return sendJson(response, 503, publicError(error, 'MONGODB_TELEMETRY'));
     }
   }
 

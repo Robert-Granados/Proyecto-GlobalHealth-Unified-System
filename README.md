@@ -32,6 +32,10 @@ docker compose up -d --build
 # Abrir http://localhost:8090
 ```
 
+El arranque también crea tres nodos para fragmentación distribuida y carga en
+MongoDB 1.000 pacientes, 5.000 sesiones y 50.000 logs. La primera carga puede
+tardar aproximadamente un minuto adicional.
+
 Además, `web/explicacion.html` es una página estática y autocontenida que explica
 qué es el proyecto y cómo funciona (arquitectura, flujos y controles críticos).
 Se puede abrir directamente con doble clic o en
@@ -45,6 +49,21 @@ docker compose up -d --build
 docker compose run --rm sqlserver-init
 .\infra\postgres\validar-backend.ps1
 ```
+
+## Verificación distribuida
+
+```powershell
+Invoke-RestMethod http://localhost:8080/health/mongo
+Invoke-RestMethod http://localhost:8080/api/telemetria/resumen
+Invoke-RestMethod http://localhost:8080/api/telemetria/paciente/1
+
+Get-Content -Raw .\infra\fragmentacion\02_verificacion.sql |
+  docker compose exec -T postgres-coordinador psql -U postgres -d globalhealth_distribuida
+```
+
+Ver [MongoDB](nosql/mongodb/README.md),
+[fragmentación](infra/fragmentacion/README.md) y
+[nube/costos](docs/04-nube-y-costos.md).
 
 La validación XML ocurre exclusivamente dentro de SQL Server. El backend crea
 dos objetos `Pool` distintos y no contiene fallback entre master y réplica.
