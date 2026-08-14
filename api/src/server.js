@@ -129,18 +129,24 @@ async function handler(request, response) {
   }
 
   if (request.method === 'POST' && url.pathname === '/api/signos-vitales') {
+    let body;
     try {
-      const body = await readJson(request);
-      const patientId = Number.parseInt(body.pacienteId, 10);
-      const heartRate = Number.parseInt(body.frecuenciaCardiaca, 10);
+      body = await readJson(request);
+    } catch {
+      return sendJson(response, 400, { ok: false, message: 'JSON inválido' });
+    }
 
-      if (!Number.isInteger(patientId) || !Number.isInteger(heartRate)) {
-        return sendJson(response, 400, {
-          ok: false,
-          message: 'pacienteId y frecuenciaCardiaca deben ser enteros'
-        });
-      }
+    const patientId = Number.parseInt(body.pacienteId, 10);
+    const heartRate = Number.parseInt(body.frecuenciaCardiaca, 10);
 
+    if (!Number.isInteger(patientId) || !Number.isInteger(heartRate)) {
+      return sendJson(response, 400, {
+        ok: false,
+        message: 'pacienteId y frecuenciaCardiaca deben ser enteros'
+      });
+    }
+
+    try {
       const result = await queryWrite(`
         INSERT INTO demo_signos_vitales (paciente_id, frecuencia_cardiaca)
         VALUES ($1, $2)
@@ -153,7 +159,8 @@ async function handler(request, response) {
         row: result.rows[0]
       });
     } catch (error) {
-      return sendJson(response, 503, publicError(error, 'WRITE_MASTER'));
+      const status = error.code === '23514' ? 400 : (error.code === '23505' ? 409 : 503);
+      return sendJson(response, status, publicError(error, 'WRITE_MASTER'));
     }
   }
 
@@ -277,12 +284,41 @@ async function handler(request, response) {
     }
   }
 
+  if (request.method === 'DELETE' && url.pathname.startsWith('/api/medicos/')) {
+    const oid = url.pathname.split('/').pop();
+    if (!/^[0-9a-fA-F-]{36}$/.test(oid)) {
+      return sendJson(response, 400, { ok: false, message: 'OID inválido (debe ser UUID)' });
+    }
+
+    try {
+      const result = await queryWrite(`
+        DELETE FROM gh_obj.medico_t
+        WHERE objeto_oid = $1::uuid
+        RETURNING objeto_oid::text AS objeto_oid, identificacion, numero_colegiado
+      `, [oid]);
+
+      if (result.rowCount === 0) {
+        return sendJson(response, 404, { ok: false, message: 'Médico no encontrado' });
+      }
+
+      return sendJson(response, 200, {
+        ok: true,
+        pool: 'WRITE_MASTER',
+        message: 'Médico eliminado correctamente en master',
+        row: result.rows[0]
+      });
+    } catch (error) {
+      return sendJson(response, 503, publicError(error, 'WRITE_MASTER'));
+    }
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/expedientes') {
     try {
       const result = await queryXml(`
         SELECT TOP 20
           ExpedienteId AS id,
           Codigo AS codigo,
+          CONVERT(nvarchar(max), Documento) AS xml,
           CONVERT(char(19), CreadoEn, 126) AS creado_en
         FROM dbo.ExpedienteClinico
         ORDER BY ExpedienteId DESC
@@ -294,6 +330,53 @@ async function handler(request, response) {
         motor: 'SQL_SERVER_XML',
         message: `${error.message} ¿Ejecutaste "docker compose run --rm sqlserver-init"?`
       });
+    }
+  }
+
+  if (request.method === 'GET' && /^\/api\/expedientes\/\d+\/xml$/.test(url.pathname)) {
+    const expId = Number.parseInt(url.pathname.split('/')[3], 10);
+    try {
+      const result = await queryXml(`
+        SELECT Codigo, CONVERT(nvarchar(max), Documento) AS DocumentoXml
+        FROM dbo.ExpedienteClinico
+        WHERE ExpedienteId = @id
+      `, {
+        id: { type: sql.Int, value: expId }
+      });
+      if (!result.recordset || result.recordset.length === 0) {
+        return sendJson(response, 404, { ok: false, message: 'Expediente no encontrado' });
+      }
+      const { Codigo, DocumentoXml } = result.recordset[0];
+      response.writeHead(200, {
+        'content-type': 'application/xml; charset=utf-8',
+        'content-disposition': `attachment; filename="${Codigo}.xml"`
+      });
+      return response.end(DocumentoXml);
+    } catch (error) {
+      return sendJson(response, 503, { ok: false, message: error.message });
+    }
+  }
+
+  if (request.method === 'GET' && /^\/api\/expedientes\/\d+$/.test(url.pathname)) {
+    const expId = Number.parseInt(url.pathname.split('/')[3], 10);
+    try {
+      const result = await queryXml(`
+        SELECT
+          ExpedienteId AS id,
+          Codigo AS codigo,
+          CONVERT(nvarchar(max), Documento) AS xml,
+          CONVERT(char(19), CreadoEn, 126) AS creado_en
+        FROM dbo.ExpedienteClinico
+        WHERE ExpedienteId = @id
+      `, {
+        id: { type: sql.Int, value: expId }
+      });
+      if (!result.recordset || result.recordset.length === 0) {
+        return sendJson(response, 404, { ok: false, message: 'Expediente no encontrado' });
+      }
+      return sendJson(response, 200, { ok: true, motor: 'SQL_SERVER_XML', row: result.recordset[0] });
+    } catch (error) {
+      return sendJson(response, 503, { ok: false, message: error.message });
     }
   }
 

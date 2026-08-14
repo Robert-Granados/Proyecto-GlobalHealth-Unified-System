@@ -30,7 +30,13 @@ const els = {
   expXml: document.getElementById('exp-xml'),
   expResult: document.getElementById('exp-result'),
   expBody: document.getElementById('exp-body'),
-  btnExp: document.getElementById('btn-exp')
+  btnExp: document.getElementById('btn-exp'),
+  xmlModal: document.getElementById('xml-modal'),
+  xmlModalTitle: document.getElementById('xml-modal-title'),
+  xmlModalCode: document.getElementById('xml-modal-code'),
+  xmlModalClose: document.getElementById('xml-modal-close'),
+  xmlModalCopy: document.getElementById('xml-modal-copy'),
+  xmlModalDownload: document.getElementById('xml-modal-download')
 };
 
 function showToast(message, kind = 'info') {
@@ -187,16 +193,22 @@ async function submitVitals(event) {
 function renderMedicos(rows) {
   if (!rows || rows.length === 0) {
     els.medicosBody.innerHTML =
-      '<tr class="empty-row"><td colspan="5">Sin médicos registrados.</td></tr>';
+      '<tr class="empty-row"><td colspan="6">Sin médicos registrados.</td></tr>';
     return;
   }
   els.medicosBody.innerHTML = rows.map((m) => `
     <tr>
-      <td>${escapeHtml(m.nombre_completo)}</td>
+      <td><strong>${escapeHtml(m.nombre_completo)}</strong></td>
       <td>${escapeHtml(m.numero_colegiado)}</td>
       <td>${escapeHtml(m.pais)}</td>
       <td>${escapeHtml(m.especialidades || '—')}</td>
       <td>${escapeHtml(m.clinica)}</td>
+      <td style="text-align: right;">
+        <button type="button" class="btn-action btn-delete" data-medico-oid="${escapeHtml(m.objeto_oid)}" data-medico-name="${escapeHtml(m.nombre_completo)}" title="Eliminar médico en master">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+          Borrar
+        </button>
+      </td>
     </tr>`).join('');
 }
 
@@ -212,7 +224,7 @@ async function loadMedicos() {
     els.medicosPoolTag.classList.remove('badge-info');
     els.medicosPoolTag.classList.add('badge-bad');
     els.medicosBody.innerHTML =
-      `<tr class="empty-row"><td colspan="5">No se pudo leer (HTTP ${status}): ${escapeHtml(body?.message || '')}</td></tr>`;
+      `<tr class="empty-row"><td colspan="6">No se pudo leer (HTTP ${status}): ${escapeHtml(body?.message || '')}</td></tr>`;
   }
 }
 
@@ -327,23 +339,89 @@ async function submitExpediente(event) {
   els.btnExp.disabled = false;
 }
 
+/* ---------------- Gestión y Visualización de Expedientes XML ---------------- */
+
+let currentExpedientes = new Map();
+let activeExpediente = null;
+
+function formatXml(xml) {
+  if (!xml) return '';
+  let formatted = '';
+  let indent = '';
+  const tab = '  ';
+  xml.split(/>\s*</).forEach((node) => {
+    if (node.match(/^\/\w/)) indent = indent.substring(tab.length);
+    formatted += indent + '<' + node + '>\r\n';
+    if (node.match(/^<?\w[^>]*[^\/]$/)) indent += tab;
+  });
+  return formatted.trim();
+}
+
+function openXmlModal(expediente) {
+  if (!expediente) return;
+  activeExpediente = expediente;
+  els.xmlModalTitle.textContent = `Expediente: ${expediente.codigo}`;
+  els.xmlModalCode.textContent = formatXml(expediente.xml || '');
+  els.xmlModal.classList.add('open');
+  els.xmlModal.removeAttribute('aria-hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeXmlModal() {
+  els.xmlModal.classList.remove('open');
+  els.xmlModal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+  activeExpediente = null;
+}
+
+function triggerDownloadXml(codigo, xmlContent) {
+  if (!xmlContent) {
+    showToast('No hay contenido XML disponible', 'bad');
+    return;
+  }
+  const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${codigo || 'expediente'}.xml`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`Descargando ${codigo}.xml`, 'good');
+}
+
 async function loadExpedientes() {
   const { status, body } = await apiFetch('/api/expedientes');
   if (status === 200 && body.ok) {
+    currentExpedientes.clear();
     if (!body.rows || body.rows.length === 0) {
       els.expBody.innerHTML =
-        '<tr class="empty-row"><td colspan="3">Sin expedientes todavía.</td></tr>';
+        '<tr class="empty-row"><td colspan="4">Sin expedientes todavía.</td></tr>';
       return;
     }
+    body.rows.forEach((r) => currentExpedientes.set(String(r.id), r));
     els.expBody.innerHTML = body.rows.map((r) => `
       <tr>
         <td>${escapeHtml(r.id)}</td>
-        <td>${escapeHtml(r.codigo)}</td>
+        <td><strong>${escapeHtml(r.codigo)}</strong></td>
         <td>${escapeHtml(String(r.creado_en).replace('T', ' '))}</td>
+        <td>
+          <div class="action-btns">
+            <button type="button" class="btn-action btn-view" data-exp-id="${escapeHtml(r.id)}" title="Ver XML">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              Ver XML
+            </button>
+            <button type="button" class="btn-action btn-download" data-exp-id="${escapeHtml(r.id)}" title="Descargar XML">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+              Descargar
+            </button>
+          </div>
+        </td>
       </tr>`).join('');
   } else {
     els.expBody.innerHTML =
-      `<tr class="empty-row"><td colspan="3">${escapeHtml(body?.message || `HTTP ${status}`)}</td></tr>`;
+      `<tr class="empty-row"><td colspan="4">${escapeHtml(body?.message || `HTTP ${status}`)}</td></tr>`;
   }
 }
 
@@ -356,6 +434,85 @@ async function refreshAll() {
   }
   els.btnRefresh.disabled = false;
 }
+
+// Delegación de clics en la tabla de expedientes para Ver y Descargar
+els.expBody.addEventListener('click', (event) => {
+  const btnView = event.target.closest('.btn-view');
+  if (btnView) {
+    const id = btnView.dataset.expId;
+    const exp = currentExpedientes.get(id);
+    if (exp) openXmlModal(exp);
+    return;
+  }
+
+  const btnDownload = event.target.closest('.btn-download');
+  if (btnDownload) {
+    const id = btnDownload.dataset.expId;
+    const exp = currentExpedientes.get(id);
+    if (exp) triggerDownloadXml(exp.codigo, exp.xml);
+    return;
+  }
+});
+
+// Eventos del modal
+els.xmlModalClose.addEventListener('click', closeXmlModal);
+els.xmlModal.addEventListener('click', (e) => {
+  if (e.target === els.xmlModal) closeXmlModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && els.xmlModal.classList.contains('open')) {
+    closeXmlModal();
+  }
+});
+
+els.xmlModalCopy.addEventListener('click', async () => {
+  if (activeExpediente?.xml) {
+    try {
+      await navigator.clipboard.writeText(activeExpediente.xml);
+      showToast('XML copiado al portapapeles', 'good');
+    } catch {
+      showToast('No se pudo copiar automáticamente', 'bad');
+    }
+  }
+});
+
+els.xmlModalDownload.addEventListener('click', () => {
+  if (activeExpediente) {
+    triggerDownloadXml(activeExpediente.codigo, activeExpediente.xml);
+  }
+});
+
+// Delegación de clic para eliminar médico
+els.medicosBody.addEventListener('click', async (event) => {
+  const btnDelete = event.target.closest('.btn-delete');
+  if (!btnDelete) return;
+
+  const oid = btnDelete.dataset.medicoOid;
+  const name = btnDelete.dataset.medicoName;
+  if (!oid) return;
+
+  if (!confirm(`¿Estás seguro de eliminar al médico "${name}"?\nEsta acción se ejecutará en WRITE_MASTER y se propagará a la réplica.`)) {
+    return;
+  }
+
+  btnDelete.disabled = true;
+  try {
+    const { status, body } = await apiFetch(`/api/medicos/${oid}`, {
+      method: 'DELETE'
+    });
+
+    if (status === 200 && body.ok) {
+      showToast(`Médico "${name}" eliminado en master`, 'good');
+      loadMedicos();
+    } else {
+      showToast(`Error al eliminar: ${body?.message || `HTTP ${status}`}`, 'bad');
+      btnDelete.disabled = false;
+    }
+  } catch (error) {
+    showToast(`Error de conexión: ${error.message}`, 'bad');
+    btnDelete.disabled = false;
+  }
+});
 
 els.vitalsForm.addEventListener('submit', submitVitals);
 els.medicoForm.addEventListener('submit', submitMedico);

@@ -512,6 +512,146 @@ form:not(.form-grid) > .form-actions { margin-top: 10px; }
 .toast[data-kind="good"] { border-left-color: var(--good); color: var(--good); }
 .toast[data-kind="bad"]  { border-left-color: var(--bad);  color: var(--bad); }
 
+/* ---------------- Botones de acción en tablas ---------------- */
+
+.action-btns {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+.btn-action svg { width: 13px; height: 13px; flex-shrink: 0; }
+.btn-action:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-action.btn-download:hover {
+  background: var(--good-soft);
+  border-color: var(--good);
+  color: var(--good);
+}
+.btn-action.btn-delete:hover {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* ---------------- Modal para XML ---------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 35, 63, 0.52);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 820px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 48px rgba(16, 35, 63, 0.22);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transform: scale(0.96) translateY(10px);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-backdrop.open .modal-card {
+  transform: scale(1) translateY(0);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfe;
+}
+.modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.btn.icon-only {
+  padding: 6px;
+  border-radius: 8px;
+  line-height: 1;
+}
+.btn.icon-only svg { width: 18px; height: 18px; }
+
+.modal-body {
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+  background: #0f172a;
+}
+.xml-code-box {
+  margin: 0;
+  padding: 18px 22px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfe;
+  flex-wrap: wrap;
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 /* ---------------- Responsive ---------------- */
 
 @media (max-width: 920px) {
@@ -534,4 +674,7 @@ form:not(.form-grid) > .form-actions { margin-top: 10px; }
   .topnav { flex-wrap: wrap; }
   .updated { width: 100%; }
   .footer-note { margin-left: 0; }
+  .modal-foot { flex-direction: column; align-items: stretch; }
+  .modal-actions { justify-content: flex-end; }
 }
+
