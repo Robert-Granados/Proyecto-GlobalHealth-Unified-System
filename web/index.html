@@ -232,10 +232,11 @@
                   <th>País</th>
                   <th>Especialidades</th>
                   <th>Clínica</th>
+                  <th style="text-align: right;">Acción</th>
                 </tr>
               </thead>
               <tbody id="medicos-body">
-                <tr class="empty-row"><td colspan="5">Sin datos — pulsa Actualizar.</td></tr>
+                <tr class="empty-row"><td colspan="6">Sin datos — pulsa Actualizar.</td></tr>
               </tbody>
             </table>
           </div>
@@ -290,10 +291,10 @@
           <div class="table-wrap">
             <table id="exp-table">
               <thead>
-                <tr><th>ID</th><th>Código</th><th>Creado</th></tr>
+                <tr><th>ID</th><th>Código</th><th>Creado</th><th style="text-align: right;">Acciones</th></tr>
               </thead>
               <tbody id="exp-body">
-                <tr class="empty-row"><td colspan="3">Sin datos — pulsa Actualizar.</td></tr>
+                <tr class="empty-row"><td colspan="4">Sin datos — pulsa Actualizar.</td></tr>
               </tbody>
             </table>
           </div>
@@ -308,6 +309,37 @@
       <span class="footer-note">Sin fallback entre pools</span>
     </footer>
   </main>
+
+  <!-- Modal para visualizar y descargar XML -->
+  <div id="xml-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-labelledby="xml-modal-title">
+      <div class="modal-head">
+        <div class="modal-title-wrap">
+          <h3 id="xml-modal-title" class="modal-title">Expediente Clínico XML</h3>
+          <span id="xml-modal-badge" class="badge badge-sql">XSD VALIDADO</span>
+        </div>
+        <button type="button" class="btn ghost icon-only" id="xml-modal-close" aria-label="Cerrar modal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <pre class="xml-code-box"><code id="xml-modal-code"></code></pre>
+      </div>
+      <div class="modal-foot">
+        <span class="hint" id="xml-modal-hint">Documento validado dentro del motor SQL Server mediante <code>ExpedienteClinicoXsd</code>.</span>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost sm" id="xml-modal-copy">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            Copiar XML
+          </button>
+          <button type="button" class="btn primary sm" id="xml-modal-download">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            Descargar .xml
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

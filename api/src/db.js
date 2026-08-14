@@ -219,7 +219,7 @@ async function mongoPatientTrace(patientId) {
   const rows = await database.collection('pacientes').aggregate([
     { $match: { pacienteId: patientId } },
     { $lookup: { from: 'sesiones', localField: 'pacienteId', foreignField: 'pacienteId', as: 'sesiones' } },
-    { $unwind: '$sesiones' },
+    { $unwind: { path: '$sesiones', preserveNullAndEmptyArrays: true } },
     { $sort: { 'sesiones.iniciadaEn': -1 } },
     { $limit: 1 },
     { $lookup: { from: 'logs', localField: 'sesiones.sesionId', foreignField: 'sesionId', as: 'logs' } },

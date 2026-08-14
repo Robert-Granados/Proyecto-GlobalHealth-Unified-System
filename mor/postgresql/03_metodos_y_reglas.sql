@@ -244,3 +244,11 @@ COMMENT ON FUNCTION gh_obj.antiguedad(gh_obj.medico_t, date) IS
     'Calcula antigüedad laboral del médico a una fecha de corte.';
 COMMENT ON FUNCTION gh_obj.costo_mantenimiento(gh_obj.equipo_medico, date) IS
     'Estima el costo de la siguiente intervención del equipo.';
+
+-- Permisos para la capa de aplicación
+GRANT USAGE ON SCHEMA gh_tipo TO PUBLIC;
+GRANT USAGE ON SCHEMA gh_obj TO PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA gh_obj TO PUBLIC;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gh_tipo TO PUBLIC;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gh_obj TO PUBLIC;
+
