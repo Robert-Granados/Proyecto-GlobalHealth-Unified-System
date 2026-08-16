@@ -179,7 +179,7 @@
     <p class="sub">
       Es el sistema de datos de una red de clínicas: guarda pacientes, empleados,
       signos vitales, expedientes clínicos y telemetría de dispositivos. No usa
-      una sola base de datos: usa <b>cuatro motores especializados</b> detrás de
+      una sola base de datos: usa <b>tres motores especializados</b> detrás de
       una sola API.
     </p>
     <div class="grid cols-2">
@@ -197,9 +197,10 @@
         de datos lo rechaza con el error exacto.</p>
       </div>
       <div class="card">
-        <h3><span class="tag mongo">MongoDB</span> Telemetría</h3>
-        <p>Datos de sensores y dispositivos médicos: alta frecuencia de escritura
-        y esquema flexible de documentos.</p>
+        <h3><span class="tag mongo">MongoDB Atlas</span> Telemetría</h3>
+        <p>1.000 pacientes, 5.000 sesiones y 50.000 logs BSON en el modelo
+        <b>Paciente → Sesión → Log</b>. El panel lista, filtra, agrega y ejecuta
+        CRUD sobre el cluster real mediante la API.</p>
       </div>
       <div class="card">
         <h3><span class="tag node">Node.js API</span> La puerta de entrada</h3>
@@ -226,11 +227,11 @@
       </div>
       <div class="drow">
         <span class="dlabel">Escritura</span>
-        <div class="node write"><b>PostgreSQL master</b><span>:55432 · acepta INSERT/UPDATE</span></div>
+        <div class="node write"><b>PostgreSQL master</b><span>:56432 · acepta INSERT/UPDATE</span></div>
         <span class="arrow">⇢</span>
         <div class="wal">replicación streaming WAL</div>
         <span class="arrow">⇢</span>
-        <div class="node read"><b>PostgreSQL réplica</b><span>:55433 · hot-standby, solo lectura</span></div>
+        <div class="node read"><b>PostgreSQL réplica</b><span>:56433 · hot-standby, solo lectura</span></div>
       </div>
       <div class="drow">
         <span class="dlabel">Lectura</span>
@@ -239,14 +240,14 @@
       <div class="drow">
         <span class="dlabel">Otros datos</span>
         <div class="node sqlx"><b>SQL Server</b><span>:14333 · expedientes XML + XSD</span></div>
-        <div class="node mgx"><b>MongoDB</b><span>:27017 · telemetría</span></div>
+        <div class="node mgx"><b>MongoDB Atlas</b><span>TLS · globalhealth_telemetry</span></div>
       </div>
     </div>
   </section>
 
   <!-- ===================== 3. FLUJOS ===================== -->
   <section>
-    <h2><span class="num">3</span> ¿Cómo funciona? Tres flujos</h2>
+    <h2><span class="num">3</span> ¿Cómo funciona? Cinco flujos</h2>
     <p class="sub">El recorrido completo de un dato, paso a paso.</p>
 
     <div class="tabs" role="tablist">
@@ -254,6 +255,7 @@
       <button class="tab" data-flow="f2" type="button">B · Leer el dashboard</button>
       <button class="tab" data-flow="f3" type="button">C · Validar un expediente XML</button>
       <button class="tab" data-flow="f4" type="button">D · Registrar un médico</button>
+      <button class="tab" data-flow="f5" type="button">E · Telemetría Atlas</button>
     </div>
 
     <div class="flow active" id="f1">
@@ -329,6 +331,23 @@
         </div>
       </div>
     </div>
+
+    <div class="flow" id="f5">
+      <div class="card">
+        <ol class="steps">
+          <li>El panel consulta <code>GET /health/mongo</code>, el resumen agregado y la lista paginada de logs.</li>
+          <li>Los filtros de paciente, tipo y calidad se traducen a consultas MongoDB con límites y ordenamiento.</li>
+          <li><b>Nueva lectura</b> envía <code>POST /api/telemetria</code>; la API comprueba que la sesión padre exista y asigna un <code>logId</code> único mediante un contador atómico.</li>
+          <li>El lápiz ejecuta <code>PUT /api/telemetria/:logId</code> y la papelera ejecuta <code>DELETE</code> tras confirmación.</li>
+          <li>Después de cada escritura se vuelven a consultar Atlas, los conteos y la agregación; la interfaz no simula datos localmente.</li>
+        </ol>
+        <div class="callout ok">
+          Los rangos se validan por tipo: frecuencia cardiaca 20–250 lpm,
+          SpO2 0–100 % y temperatura 25–50 °C. La unidad se deriva en la API y
+          una <code>sesionId</code> inexistente se rechaza.
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ===================== 4. CONTROLES ===================== -->
@@ -343,6 +362,15 @@
           <p>Al arrancar, la API exige <code>pg_is_in_recovery()=false</code> en el pool de
           escritura y <code>=true</code> en el de lectura, y que ambos resuelvan
           <b>direcciones físicas distintas</b>. Si no, el proceso aborta.</p>
+        </div>
+      </div>
+      <div class="card control">
+        <span class="ico" style="background:var(--mongo)">MDB</span>
+        <div>
+          <h3>Integridad documental en Atlas</h3>
+          <p>Índices únicos para paciente, sesión y log; relación padre obligatoria,
+          URI inyectada por entorno, consultas con <code>$lookup</code> y CRUD
+          validado a través de una interfaz funcional.</p>
         </div>
       </div>
       <div class="card control">
@@ -398,16 +426,24 @@ docker compose run --rm sqlserver-init
   <!-- ===================== 6. ENDPOINTS ===================== -->
   <section>
     <h2><span class="num">6</span> Endpoints de la API</h2>
-    <p class="sub">Las únicas cuatro rutas del backend, y qué pool usa cada una.</p>
+    <p class="sub">Rutas públicas del backend y motor físico que atiende cada operación.</p>
     <table>
       <thead><tr><th>Ruta</th><th>Método</th><th>Pool que la atiende</th></tr></thead>
       <tbody>
         <tr><td><code>/health</code></td><td>GET</td><td>Comprueba <b>ambos</b> pools y reporta si están físicamente separados</td></tr>
         <tr><td><code>/health/read</code></td><td>GET</td><td>Réplica (readPool)</td></tr>
+        <tr><td><code>/health/mongo</code></td><td>GET</td><td>MongoDB Atlas · ping y conteos de las tres colecciones</td></tr>
+        <tr><td><code>/api/telemetria</code></td><td>GET</td><td>MongoDB Atlas · lista paginada y filtros</td></tr>
+        <tr><td><code>/api/telemetria/resumen</code></td><td>GET</td><td>MongoDB Atlas · agregación por tipo</td></tr>
+        <tr><td><code>/api/telemetria/paciente/:id</code></td><td>GET</td><td>MongoDB Atlas · dos <code>$lookup</code></td></tr>
+        <tr><td><code>/api/telemetria</code></td><td>POST</td><td>MongoDB Atlas · inserta y valida la sesión padre</td></tr>
+        <tr><td><code>/api/telemetria/:logId</code></td><td>PUT</td><td>MongoDB Atlas · actualiza una lectura</td></tr>
+        <tr><td><code>/api/telemetria/:logId</code></td><td>DELETE</td><td>MongoDB Atlas · elimina una lectura</td></tr>
         <tr><td><code>/api/dashboard/signos-vitales</code></td><td>GET</td><td>Réplica (readPool)</td></tr>
         <tr><td><code>/api/signos-vitales</code></td><td>POST</td><td>Master (writePool)</td></tr>
         <tr><td><code>/api/medicos</code></td><td>GET</td><td>Réplica (readPool) · usa el método <code>nombre_completo(medico_t)</code></td></tr>
         <tr><td><code>/api/medicos</code></td><td>POST</td><td>Master (writePool) · construye los tipos compuestos del INSERT</td></tr>
+        <tr><td><code>/api/medicos/:oid</code></td><td>DELETE</td><td>Master (writePool) · elimina por identidad lógica UUID</td></tr>
         <tr><td><code>/api/expedientes</code></td><td>GET</td><td>SQL Server · lista los expedientes aceptados</td></tr>
         <tr><td><code>/api/expedientes</code></td><td>POST</td><td>SQL Server · el motor valida el XSD y responde el error exacto</td></tr>
       </tbody>

@@ -6,8 +6,12 @@ const {
   ensureDemoData,
   inspectPool,
   inspectMongo,
+  mongoCreateTelemetry,
+  mongoDeleteTelemetry,
+  mongoTelemetryList,
   mongoPatientTrace,
   mongoTelemetrySummary,
+  mongoUpdateTelemetry,
   queryRead,
   queryWrite,
   queryXml,
@@ -35,6 +39,32 @@ async function readJson(request) {
   }
   if (chunks.length === 0) return {};
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+function parseTelemetryPayload(body) {
+  const sesionId = Number.parseInt(body.sesionId, 10);
+  const tipo = String(body.tipo || '').trim().toUpperCase();
+  const valor = Number(body.valor);
+  const calidad = String(body.calidad || '').trim().toUpperCase();
+  const registradoEn = body.registradoEn ? new Date(body.registradoEn) : new Date();
+  const rules = {
+    FRECUENCIA_CARDIACA: { min: 20, max: 250, unidad: 'lpm' },
+    SPO2: { min: 0, max: 100, unidad: '%' },
+    TEMPERATURA: { min: 25, max: 50, unidad: 'C' }
+  };
+  const rule = rules[tipo];
+  const errors = [];
+  if (!Number.isInteger(sesionId) || sesionId < 1) errors.push('sesionId');
+  if (!rule) errors.push('tipo');
+  if (!Number.isFinite(valor) || (rule && (valor < rule.min || valor > rule.max))) errors.push('valor');
+  if (!['VALIDA', 'REVISAR'].includes(calidad)) errors.push('calidad');
+  if (Number.isNaN(registradoEn.getTime())) errors.push('registradoEn');
+  if (errors.length) {
+    const error = new Error(`Campos de telemetria invalidos: ${errors.join(', ')}`);
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+  return { sesionId, tipo, valor, unidad: rule.unidad, calidad, registradoEn };
 }
 
 function publicError(error, pool) {
@@ -92,6 +122,70 @@ async function handler(request, response) {
       });
     } catch (error) {
       return sendJson(response, 503, publicError(error, 'MONGODB_TELEMETRY'));
+    }
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/telemetria') {
+    const page = Number.parseInt(url.searchParams.get('page') || '1', 10);
+    const limit = Number.parseInt(url.searchParams.get('limit') || '20', 10);
+    const patientText = url.searchParams.get('pacienteId');
+    const patientId = patientText ? Number.parseInt(patientText, 10) : undefined;
+    const type = url.searchParams.get('tipo') || undefined;
+    const quality = url.searchParams.get('calidad') || undefined;
+    const validTypes = ['FRECUENCIA_CARDIACA', 'SPO2', 'TEMPERATURA'];
+    const validQualities = ['VALIDA', 'REVISAR'];
+
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100 ||
+        (patientText && (!Number.isInteger(patientId) || patientId < 1)) ||
+        (type && !validTypes.includes(type)) || (quality && !validQualities.includes(quality))) {
+      return sendJson(response, 400, { ok: false, message: 'Filtros de telemetria invalidos' });
+    }
+
+    try {
+      const result = await mongoTelemetryList({ page, limit, patientId, type, quality });
+      return sendJson(response, 200, { ok: true, motor: 'MONGODB_ATLAS', ...result });
+    } catch (error) {
+      return sendJson(response, 503, publicError(error, 'MONGODB_TELEMETRY'));
+    }
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/telemetria') {
+    try {
+      const data = parseTelemetryPayload(await readJson(request));
+      const row = await mongoCreateTelemetry(data);
+      return sendJson(response, 201, { ok: true, motor: 'MONGODB_ATLAS', row });
+    } catch (error) {
+      const status = error.code === 'VALIDATION_ERROR' ? 400
+        : (error.code === 'SESSION_NOT_FOUND' ? 404 : (error.code === 11000 ? 409 : 503));
+      return sendJson(response, status, publicError(error, 'MONGODB_ATLAS'));
+    }
+  }
+
+  const telemetryLogMatch = url.pathname.match(/^\/api\/telemetria\/(\d+)$/);
+  if (telemetryLogMatch && request.method === 'PUT') {
+    const logId = Number.parseInt(telemetryLogMatch[1], 10);
+    try {
+      const data = parseTelemetryPayload(await readJson(request));
+      const row = await mongoUpdateTelemetry(logId, data);
+      return row
+        ? sendJson(response, 200, { ok: true, motor: 'MONGODB_ATLAS', row })
+        : sendJson(response, 404, { ok: false, message: `Log ${logId} no encontrado` });
+    } catch (error) {
+      const status = error.code === 'VALIDATION_ERROR' ? 400
+        : (error.code === 'SESSION_NOT_FOUND' ? 404 : 503);
+      return sendJson(response, status, publicError(error, 'MONGODB_ATLAS'));
+    }
+  }
+
+  if (telemetryLogMatch && request.method === 'DELETE') {
+    const logId = Number.parseInt(telemetryLogMatch[1], 10);
+    try {
+      const row = await mongoDeleteTelemetry(logId);
+      return row
+        ? sendJson(response, 200, { ok: true, motor: 'MONGODB_ATLAS', row })
+        : sendJson(response, 404, { ok: false, message: `Log ${logId} no encontrado` });
+    } catch (error) {
+      return sendJson(response, 503, publicError(error, 'MONGODB_ATLAS'));
     }
   }
 

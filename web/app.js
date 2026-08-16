@@ -36,7 +36,33 @@ const els = {
   xmlModalCode: document.getElementById('xml-modal-code'),
   xmlModalClose: document.getElementById('xml-modal-close'),
   xmlModalCopy: document.getElementById('xml-modal-copy'),
-  xmlModalDownload: document.getElementById('xml-modal-download')
+  xmlModalDownload: document.getElementById('xml-modal-download'),
+  mongoProviderBadge: document.getElementById('mongo-provider-badge'),
+  mongoStatus: document.getElementById('mongo-status'),
+  telemetrySummary: document.getElementById('telemetry-summary'),
+  telemetryFilterForm: document.getElementById('telemetry-filter-form'),
+  telemetryPatientId: document.getElementById('telemetry-patient-id'),
+  telemetryType: document.getElementById('telemetry-type'),
+  telemetryQuality: document.getElementById('telemetry-quality'),
+  telemetryBody: document.getElementById('telemetry-body'),
+  telemetryPageInfo: document.getElementById('telemetry-page-info'),
+  telemetryPrev: document.getElementById('telemetry-prev'),
+  telemetryNext: document.getElementById('telemetry-next'),
+  btnTelemetryFilter: document.getElementById('btn-telemetry-filter'),
+  btnTelemetryNew: document.getElementById('btn-telemetry-new'),
+  telemetryModal: document.getElementById('telemetry-modal'),
+  telemetryModalTitle: document.getElementById('telemetry-modal-title'),
+  telemetryModalClose: document.getElementById('telemetry-modal-close'),
+  telemetryModalCancel: document.getElementById('telemetry-modal-cancel'),
+  telemetryForm: document.getElementById('telemetry-form'),
+  telemetryLogId: document.getElementById('telemetry-log-id'),
+  telemetrySessionId: document.getElementById('telemetry-session-id'),
+  telemetryEditType: document.getElementById('telemetry-edit-type'),
+  telemetryValue: document.getElementById('telemetry-value'),
+  telemetryEditQuality: document.getElementById('telemetry-edit-quality'),
+  telemetryRecordedAt: document.getElementById('telemetry-recorded-at'),
+  telemetryFormMessage: document.getElementById('telemetry-form-message'),
+  btnTelemetrySave: document.getElementById('btn-telemetry-save')
 };
 
 function showToast(message, kind = 'info') {
@@ -149,6 +175,188 @@ async function loadVitals() {
     els.vitalsPoolTag.classList.add('badge-bad');
     els.vitalsBody.innerHTML =
       `<tr class="empty-row"><td colspan="4">No se pudo leer (HTTP ${status}): ${escapeHtml(body?.message || '')}</td></tr>`;
+  }
+}
+
+function formatMetric(value, digits = 1) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? number.toLocaleString('es-ES', { maximumFractionDigits: digits })
+    : '--';
+}
+
+const telemetryState = { page: 1, pages: 1 };
+
+async function loadTelemetry() {
+  els.mongoProviderBadge.textContent = 'CARGANDO';
+  els.mongoProviderBadge.className = 'badge badge-neutral';
+
+  const [healthResult, summaryResult] = await Promise.all([
+    apiFetch('/health/mongo'),
+    apiFetch('/api/telemetria/resumen')
+  ]);
+
+  if (healthResult.status !== 200 || !healthResult.body.ok) {
+    els.mongoProviderBadge.textContent = 'ERROR';
+    els.mongoProviderBadge.className = 'badge badge-bad';
+    els.mongoStatus.classList.add('error');
+    fillDl(els.mongoStatus, {
+      provider: healthResult.body?.message || `HTTP ${healthResult.status}`
+    });
+  } else {
+    const mongo = healthResult.body.mongo;
+    els.mongoProviderBadge.textContent = mongo.provider;
+    els.mongoProviderBadge.className = 'badge badge-good';
+    els.mongoStatus.classList.remove('error');
+    fillDl(els.mongoStatus, {
+      ...mongo,
+      pacientes: formatMetric(mongo.pacientes, 0),
+      sesiones: formatMetric(mongo.sesiones, 0),
+      logs: formatMetric(mongo.logs, 0)
+    });
+  }
+
+  if (summaryResult.status !== 200 || !summaryResult.body.ok) {
+    els.telemetrySummary.innerHTML =
+      `<div class="telemetry-empty">${escapeHtml(summaryResult.body?.message || `HTTP ${summaryResult.status}`)}</div>`;
+    return;
+  }
+
+  const labels = {
+    FRECUENCIA_CARDIACA: 'Frecuencia cardiaca',
+    SPO2: 'Saturacion de oxigeno',
+    TEMPERATURA: 'Temperatura'
+  };
+  const units = { FRECUENCIA_CARDIACA: 'lpm', SPO2: '%', TEMPERATURA: 'C' };
+  els.telemetrySummary.innerHTML = summaryResult.body.rows.map((row) => `
+    <div class="telemetry-metric">
+      <h4>${escapeHtml(labels[row._id] || row._id)}</h4>
+      <div class="telemetry-range">Prom. ${formatMetric(row.promedio)} | ${formatMetric(row.minimo)}-${formatMetric(row.maximo)} ${escapeHtml(units[row._id] || '')}</div>
+      <div class="telemetry-total">${formatMetric(row.total, 0)}</div>
+    </div>`).join('');
+}
+
+function showTelemetryLoadError(error) {
+  els.mongoProviderBadge.textContent = 'ERROR';
+  els.mongoProviderBadge.className = 'badge badge-bad';
+  els.mongoStatus.classList.add('error');
+  fillDl(els.mongoStatus, { provider: error?.message || 'MongoDB no disponible' });
+  els.telemetrySummary.innerHTML = '<div class="telemetry-empty">No se pudo cargar el resumen.</div>';
+  els.telemetryBody.innerHTML = '<tr class="empty-row"><td colspan="7">No se pudo cargar la telemetria de Atlas.</td></tr>';
+  els.telemetryPageInfo.textContent = '--';
+}
+
+async function loadTelemetryRows(page = telemetryState.page) {
+  const query = new URLSearchParams({ page: String(page), limit: '20' });
+  if (els.telemetryPatientId.value) query.set('pacienteId', els.telemetryPatientId.value);
+  if (els.telemetryType.value) query.set('tipo', els.telemetryType.value);
+  if (els.telemetryQuality.value) query.set('calidad', els.telemetryQuality.value);
+
+  els.btnTelemetryFilter.disabled = true;
+  els.telemetryBody.innerHTML = '<tr class="empty-row"><td colspan="7">Consultando Atlas...</td></tr>';
+  const { status, body } = await apiFetch(`/api/telemetria?${query}`);
+  els.btnTelemetryFilter.disabled = false;
+
+  if (status !== 200 || !body.ok) {
+    els.telemetryBody.innerHTML = `<tr class="empty-row"><td colspan="7">${escapeHtml(body?.message || `HTTP ${status}`)}</td></tr>`;
+    els.telemetryPageInfo.textContent = 'No se pudieron cargar los registros';
+    els.telemetryPrev.disabled = true;
+    els.telemetryNext.disabled = true;
+    return;
+  }
+
+  telemetryState.page = body.page;
+  telemetryState.pages = body.pages;
+  telemetryState.rows = new Map(body.rows.map((row) => [String(row.logId), row]));
+  els.telemetryBody.innerHTML = body.rows.length ? body.rows.map((row) => `
+    <tr>
+      <td><strong>${escapeHtml(row.identificacion)}</strong><br><small>${escapeHtml(row.pais)} | ID ${escapeHtml(row.pacienteId)}</small></td>
+      <td>${escapeHtml(row.dispositivo)}</td>
+      <td>${escapeHtml(row.tipo.replaceAll('_', ' '))}</td>
+      <td>${escapeHtml(row.valor)} ${escapeHtml(row.unidad)}</td>
+      <td><span class="quality-chip ${row.calidad === 'VALIDA' ? 'quality-valid' : 'quality-review'}">${escapeHtml(row.calidad)}</span></td>
+      <td>${fmtDate(row.registradoEn)}</td>
+      <td><div class="telemetry-row-actions">
+        <button type="button" class="btn-action telemetry-edit" data-log-id="${escapeHtml(row.logId)}" title="Editar lectura" aria-label="Editar lectura">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+        </button>
+        <button type="button" class="btn-action btn-delete telemetry-delete" data-log-id="${escapeHtml(row.logId)}" title="Eliminar lectura" aria-label="Eliminar lectura">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></svg>
+        </button>
+      </div></td>
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="7">No hay registros para estos filtros.</td></tr>';
+  const first = body.total ? ((body.page - 1) * body.limit) + 1 : 0;
+  const last = Math.min(body.page * body.limit, body.total);
+  els.telemetryPageInfo.textContent = `${formatMetric(first, 0)}-${formatMetric(last, 0)} de ${formatMetric(body.total, 0)} registros`;
+  els.telemetryPrev.disabled = body.page <= 1;
+  els.telemetryNext.disabled = body.page >= body.pages;
+}
+
+async function filterTelemetry(event) {
+  event.preventDefault();
+  await loadTelemetryRows(1);
+}
+
+function localDateTimeValue(value = new Date()) {
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function openTelemetryModal(row = null) {
+  els.telemetryForm.reset();
+  els.telemetryLogId.value = row?.logId || '';
+  els.telemetrySessionId.value = row?.sesionId || '';
+  els.telemetryEditType.value = row?.tipo || 'FRECUENCIA_CARDIACA';
+  els.telemetryValue.value = row?.valor ?? '';
+  els.telemetryEditQuality.value = row?.calidad || 'VALIDA';
+  els.telemetryRecordedAt.value = localDateTimeValue(row?.registradoEn || new Date());
+  els.telemetryModalTitle.textContent = row ? `Editar lectura #${row.logId}` : 'Nueva lectura de telemetria';
+  els.telemetryFormMessage.textContent = '';
+  els.telemetryModal.classList.add('open');
+  els.telemetryModal.setAttribute('aria-hidden', 'false');
+  els.telemetrySessionId.focus();
+}
+
+function closeTelemetryModal() {
+  els.telemetryModal.classList.remove('open');
+  els.telemetryModal.setAttribute('aria-hidden', 'true');
+}
+
+async function saveTelemetry(event) {
+  event.preventDefault();
+  const logId = els.telemetryLogId.value;
+  const payload = {
+    sesionId: Number(els.telemetrySessionId.value),
+    tipo: els.telemetryEditType.value,
+    valor: Number(els.telemetryValue.value),
+    calidad: els.telemetryEditQuality.value,
+    registradoEn: new Date(els.telemetryRecordedAt.value).toISOString()
+  };
+  els.btnTelemetrySave.disabled = true;
+  els.telemetryFormMessage.textContent = 'Guardando en Atlas...';
+  const { status, body } = await apiFetch(logId ? `/api/telemetria/${logId}` : '/api/telemetria', {
+    method: logId ? 'PUT' : 'POST',
+    body: JSON.stringify(payload)
+  });
+  els.btnTelemetrySave.disabled = false;
+  if ((status === 200 || status === 201) && body.ok) {
+    closeTelemetryModal();
+    showToast(logId ? `Lectura #${logId} actualizada en Atlas` : `Lectura #${body.row.logId} creada en Atlas`, 'good');
+    await Promise.all([loadTelemetry(), loadTelemetryRows(1)]);
+    return;
+  }
+  els.telemetryFormMessage.textContent = body?.message || `Error HTTP ${status}`;
+}
+
+async function deleteTelemetry(logId) {
+  if (!confirm(`Eliminar permanentemente la lectura #${logId} de MongoDB Atlas?`)) return;
+  const { status, body } = await apiFetch(`/api/telemetria/${logId}`, { method: 'DELETE' });
+  if (status === 200 && body.ok) {
+    showToast(`Lectura #${logId} eliminada de Atlas`, 'good');
+    await Promise.all([loadTelemetry(), loadTelemetryRows(telemetryState.page)]);
+  } else {
+    showToast(body?.message || `Error HTTP ${status}`, 'bad');
   }
 }
 
@@ -427,7 +635,11 @@ async function loadExpedientes() {
 
 async function refreshAll() {
   els.btnRefresh.disabled = true;
-  await Promise.allSettled([loadHealth(), loadVitals(), loadMedicos(), loadExpedientes()]);
+  const results = await Promise.allSettled([
+    loadHealth(), loadVitals(), loadTelemetry(), loadTelemetryRows(1), loadMedicos(), loadExpedientes()
+  ]);
+  const telemetryError = results.slice(2, 4).find((result) => result.status === 'rejected');
+  if (telemetryError) showTelemetryLoadError(telemetryError.reason);
   if (els.lastUpdated) {
     els.lastUpdated.textContent =
       'Actualizado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -462,6 +674,9 @@ els.xmlModal.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && els.xmlModal.classList.contains('open')) {
     closeXmlModal();
+  }
+  if (e.key === 'Escape' && els.telemetryModal.classList.contains('open')) {
+    closeTelemetryModal();
   }
 });
 
@@ -517,6 +732,26 @@ els.medicosBody.addEventListener('click', async (event) => {
 els.vitalsForm.addEventListener('submit', submitVitals);
 els.medicoForm.addEventListener('submit', submitMedico);
 els.expForm.addEventListener('submit', submitExpediente);
+els.telemetryFilterForm.addEventListener('submit', filterTelemetry);
+els.telemetryForm.addEventListener('submit', saveTelemetry);
+els.btnTelemetryNew.addEventListener('click', () => openTelemetryModal());
+els.telemetryModalClose.addEventListener('click', closeTelemetryModal);
+els.telemetryModalCancel.addEventListener('click', closeTelemetryModal);
+els.telemetryModal.addEventListener('click', (event) => {
+  if (event.target === els.telemetryModal) closeTelemetryModal();
+});
+els.telemetryBody.addEventListener('click', (event) => {
+  const editButton = event.target.closest('.telemetry-edit');
+  if (editButton) {
+    const row = telemetryState.rows?.get(editButton.dataset.logId);
+    if (row) openTelemetryModal(row);
+    return;
+  }
+  const deleteButton = event.target.closest('.telemetry-delete');
+  if (deleteButton) deleteTelemetry(deleteButton.dataset.logId);
+});
+els.telemetryPrev.addEventListener('click', () => loadTelemetryRows(telemetryState.page - 1));
+els.telemetryNext.addEventListener('click', () => loadTelemetryRows(telemetryState.page + 1));
 document.querySelectorAll('[data-preset]').forEach((btn) => {
   btn.addEventListener('click', () => cargarPreset(btn.dataset.preset));
 });

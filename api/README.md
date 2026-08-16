@@ -19,10 +19,15 @@ dashboard llama únicamente `queryRead`.
 | `GET /health/mongo` | MongoDB y conteos de colecciones |
 | `GET /api/telemetria/resumen` | agregación MongoDB |
 | `GET /api/telemetria/paciente/:id` | `$lookup` Paciente → Sesión → Logs |
+| `GET /api/telemetria` | lista paginada y filtrada de logs en Atlas |
+| `POST /api/telemetria` | crea una lectura validando su sesión padre |
+| `PUT /api/telemetria/:logId` | actualiza una lectura y su unidad clínica |
+| `DELETE /api/telemetria/:logId` | elimina una lectura de Atlas |
 | `GET /api/dashboard/signos-vitales` | réplica |
 | `POST /api/signos-vitales` | master |
 | `GET /api/medicos` | réplica |
 | `POST /api/medicos` | master |
+| `DELETE /api/medicos/:oid` | master |
 | `GET /api/expedientes` | SQL Server (capa XML) |
 | `POST /api/expedientes` | SQL Server (valida el XSD dentro del motor) |
 
@@ -57,12 +62,26 @@ XSD y la columna tipada).
 `errorNumero` y `mensajeExacto` producidos por el motor (p. ej. `6908` firma
 faltante, `6926` valor inválido); la API no contiene ninguna librería XSD.
 
+## Telemetría MongoDB Atlas
+
+Si `ATLAS_MONGO_URL` está definida, la API la prioriza sobre el MongoDB local.
+`GET /api/telemetria` pagina 20 documentos y acepta los filtros `pacienteId`,
+`tipo` y `calidad`. El resumen usa `$match` y `$group`; la trazabilidad de un
+paciente usa dos `$lookup` entre `pacientes`, `sesiones` y `logs`.
+
+El CRUD conserva la jerarquía documental: `POST` y `PUT` rechazan una
+`sesionId` que no exista. La API valida el rango del valor, deriva `unidad` del
+tipo y genera `logId` mediante un contador atómico. `DELETE` elimina únicamente
+el log indicado. La URI real vive en `.env`, archivo excluido de Git.
+
 ## Prueba
 
 ```powershell
 docker compose up -d --build postgres-master postgres-replica api
 Invoke-RestMethod http://localhost:8080/health | ConvertTo-Json -Depth 6
 Invoke-RestMethod http://localhost:8080/api/dashboard/signos-vitales
+Invoke-RestMethod http://localhost:8080/health/mongo
+Invoke-RestMethod 'http://localhost:8080/api/telemetria?page=1&limit=20'
 ```
 
 Validación automática y demo de caída en Windows:

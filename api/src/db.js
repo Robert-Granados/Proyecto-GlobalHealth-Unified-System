@@ -214,6 +214,117 @@ async function mongoTelemetrySummary() {
   ]).toArray();
 }
 
+async function mongoTelemetryList({ page = 1, limit = 20, patientId, type, quality }) {
+  const database = await getMongoDatabase();
+  const logMatch = {};
+  if (type) logMatch.tipo = type;
+  if (quality) logMatch.calidad = quality;
+  if (patientId) {
+    const sessionIds = await database.collection('sesiones')
+      .distinct('sesionId', { pacienteId: patientId });
+    logMatch.sesionId = { $in: sessionIds };
+  }
+
+  const logsCollection = database.collection('logs');
+  const [total, logs] = await Promise.all([
+    logsCollection.countDocuments(logMatch),
+    logsCollection.find(logMatch, { projection: { _id: 0 } })
+      .sort({ registradoEn: -1, logId: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray()
+  ]);
+
+  const sessionIds = [...new Set(logs.map((row) => row.sesionId))];
+  const sessions = sessionIds.length
+    ? await database.collection('sesiones').find(
+      { sesionId: { $in: sessionIds } },
+      { projection: { _id: 0, sesionId: 1, pacienteId: 1, dispositivo: 1 } }
+    ).toArray()
+    : [];
+  const patientIds = [...new Set(sessions.map((row) => row.pacienteId))];
+  const patients = patientIds.length
+    ? await database.collection('pacientes').find(
+      { pacienteId: { $in: patientIds } },
+      { projection: { _id: 0, pacienteId: 1, identificacion: 1, pais: 1 } }
+    ).toArray()
+    : [];
+  const sessionsById = new Map(sessions.map((row) => [row.sesionId, row]));
+  const patientsById = new Map(patients.map((row) => [row.pacienteId, row]));
+  const rows = logs.map((log) => {
+    const session = sessionsById.get(log.sesionId) || {};
+    const patient = patientsById.get(session.pacienteId) || {};
+    return {
+      ...log,
+      dispositivo: session.dispositivo,
+      pacienteId: patient.pacienteId,
+      identificacion: patient.identificacion,
+      pais: patient.pais
+    };
+  });
+
+  return { rows, page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) };
+}
+
+async function assertMongoSession(database, sessionId) {
+  const session = await database.collection('sesiones').findOne(
+    { sesionId: sessionId },
+    { projection: { _id: 0, sesionId: 1, pacienteId: 1, dispositivo: 1 } }
+  );
+  if (!session) {
+    const error = new Error(`La sesion ${sessionId} no existe`);
+    error.code = 'SESSION_NOT_FOUND';
+    throw error;
+  }
+  return session;
+}
+
+async function mongoCreateTelemetry(data) {
+  const database = await getMongoDatabase();
+  await assertMongoSession(database, data.sesionId);
+  const lastLog = await database.collection('logs')
+    .find({}, { projection: { _id: 0, logId: 1 } })
+    .sort({ logId: -1 })
+    .limit(1)
+    .next();
+  await database.collection('counters').updateOne(
+    { _id: 'logs' },
+    { $setOnInsert: { seq: lastLog?.logId || 0 } },
+    { upsert: true }
+  );
+  const counter = await database.collection('counters').findOneAndUpdate(
+    { _id: 'logs' },
+    { $inc: { seq: 1 } },
+    { returnDocument: 'after' }
+  );
+  const row = {
+    logId: counter.seq,
+    ...data,
+    generadoPor: 'globalhealth-panel'
+  };
+  await database.collection('logs').insertOne(row);
+  return row;
+}
+
+async function mongoUpdateTelemetry(logId, data) {
+  const database = await getMongoDatabase();
+  await assertMongoSession(database, data.sesionId);
+  const result = await database.collection('logs').findOneAndUpdate(
+    { logId },
+    { $set: { ...data, actualizadoEn: new Date(), actualizadoPor: 'globalhealth-panel' } },
+    { returnDocument: 'after', projection: { _id: 0 } }
+  );
+  return result;
+}
+
+async function mongoDeleteTelemetry(logId) {
+  const database = await getMongoDatabase();
+  return database.collection('logs').findOneAndDelete(
+    { logId },
+    { projection: { _id: 0 } }
+  );
+}
+
 async function mongoPatientTrace(patientId) {
   const database = await getMongoDatabase();
   const rows = await database.collection('pacientes').aggregate([
@@ -243,8 +354,12 @@ module.exports = {
   ensureDemoData,
   inspectPool,
   inspectMongo,
+  mongoCreateTelemetry,
+  mongoDeleteTelemetry,
+  mongoTelemetryList,
   mongoPatientTrace,
   mongoTelemetrySummary,
+  mongoUpdateTelemetry,
   queryRead,
   queryWrite,
   queryXml,
