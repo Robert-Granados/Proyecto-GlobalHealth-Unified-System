@@ -5,16 +5,22 @@ transferencia de salida. Los precios de Atlas dependen del proveedor, región,
 almacenamiento, respaldos y tráfico; antes de contratar debe guardarse una
 captura del [calculador oficial](https://www.mongodb.com/pricing/calculator/).
 
-## Despliegue propuesto
+## Despliegue y controles
 
-1. Crear un proyecto Atlas y un cluster en la región más cercana a las clínicas.
+1. Usar un proyecto Atlas y un cluster en la región más cercana a las clínicas.
 2. Para demostración usar M10; para mayor memoria usar M20. M10/M20 usan
    rendimiento burstable; M30+ es preferible para tráfico alto de producción.
 3. Crear un usuario con `readWrite` solo sobre `globalhealth_telemetry`.
 4. Autorizar solamente las IP/CIDR del backend o configurar un private endpoint.
-5. Exigir TLS, rotar la contraseña y guardar la URI en el secreto `MONGO_URL`.
+5. Exigir TLS, rotar la contraseña y guardar la URI en `ATLAS_MONGO_URL`.
 6. Ejecutar `nosql/mongodb/01_modelo_y_datos.js` contra Atlas y comprobar
-   `/health/mongo`. Nunca versionar la URI real ni sus credenciales.
+   `/health/mongo`. Nunca versionar la URI real ni sus credenciales; `.env`
+   está excluido por `.gitignore`.
+
+La interfaz funcional consume Atlas mediante `/health/mongo` y
+`/api/telemetria`. Permite listar, filtrar, agregar, actualizar y eliminar
+logs; cada escritura valida la sesión padre. La matriz de cumplimiento y las
+capturas todavía requeridas están en `docs/05-cumplimiento-mongodb-atlas.md`.
 
 Atlas factura clusters dedicados por hora y muestra el costo antes de aplicar la
 configuración. El almacenamiento predeterminado se incluye en la tarifa; espacio

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GlobalHealth · Panel Clínico</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260815-4" />
 </head>
 <body>
   <header class="app-header">
@@ -245,6 +245,84 @@
     </section>
 
     <!-- Expediente XML: validación dentro de SQL Server -->
+    <section class="card telemetry">
+      <header class="card-head">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5c-2.5 0-5 2-5 5"/><path d="M7 5c2.5 0 5 2 5 5"/><path d="M18 10c-3 0-6 2-6 6"/><path d="M6 10c3 0 6 2 6 6"/></svg>
+          Telemetria MongoDB Atlas
+        </h2>
+        <div class="card-head-actions">
+          <span id="mongo-provider-badge" class="badge badge-neutral">MONGODB</span>
+          <button id="btn-telemetry-new" type="button" class="btn primary sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Nueva lectura
+          </button>
+        </div>
+      </header>
+      <div class="split telemetry-split">
+        <div class="split-col telemetry-overview">
+          <h3 class="mini-title">Estado y resumen del origen</h3>
+          <dl id="mongo-status" class="mongo-status-list">
+            <dt>Proveedor</dt><dd data-key="provider">--</dd>
+            <dt>Base de datos</dt><dd data-key="database">--</dd>
+            <dt>Pacientes</dt><dd data-key="pacientes">--</dd>
+            <dt>Sesiones</dt><dd data-key="sesiones">--</dd>
+            <dt>Registros</dt><dd data-key="logs">--</dd>
+          </dl>
+          <h3 class="mini-title">Lecturas validas</h3>
+          <div class="telemetry-summary" id="telemetry-summary">
+            <div class="telemetry-empty">Sin datos.</div>
+          </div>
+        </div>
+
+        <div class="split-col telemetry-browser">
+          <h3 class="mini-title">Registros recientes de Atlas</h3>
+          <form id="telemetry-filter-form" class="telemetry-filters" autocomplete="off">
+            <label class="field">
+              <span>Paciente</span>
+              <input id="telemetry-patient-id" name="pacienteId" type="number" min="1" step="1" placeholder="Todos" />
+            </label>
+            <label class="field">
+              <span>Tipo</span>
+              <select id="telemetry-type" name="tipo">
+                <option value="">Todos</option>
+                <option value="FRECUENCIA_CARDIACA">Frecuencia cardiaca</option>
+                <option value="SPO2">SpO2</option>
+                <option value="TEMPERATURA">Temperatura</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Calidad</span>
+              <select id="telemetry-quality" name="calidad">
+                <option value="">Todas</option>
+                <option value="VALIDA">Valida</option>
+                <option value="REVISAR">Revisar</option>
+              </select>
+            </label>
+            <button id="btn-telemetry-filter" type="submit" class="btn primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M7 12h10M10 19h4"/></svg>
+              Filtrar
+            </button>
+          </form>
+          <div class="table-wrap telemetry-table-wrap">
+            <table id="telemetry-table">
+              <thead><tr><th>Paciente</th><th>Dispositivo</th><th>Medicion</th><th>Valor</th><th>Calidad</th><th>Registrado</th><th>Acciones</th></tr></thead>
+              <tbody id="telemetry-body"><tr class="empty-row"><td colspan="7">Cargando registros...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="table-pagination">
+            <span id="telemetry-page-info">--</span>
+            <div>
+              <button id="telemetry-prev" type="button" class="btn ghost sm" disabled>Anterior</button>
+              <button id="telemetry-next" type="button" class="btn ghost sm" disabled>Siguiente</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="card expediente">
       <header class="card-head">
         <h2>
@@ -341,8 +419,60 @@
     </div>
   </div>
 
+  <div id="telemetry-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-card telemetry-modal-card" role="dialog" aria-labelledby="telemetry-modal-title">
+      <div class="modal-head">
+        <div class="modal-title-wrap">
+          <h3 id="telemetry-modal-title" class="modal-title">Nueva lectura de telemetria</h3>
+          <span class="badge badge-good">MONGODB_ATLAS</span>
+        </div>
+        <button type="button" class="btn ghost icon-only" id="telemetry-modal-close" aria-label="Cerrar modal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="telemetry-form" class="telemetry-edit-form" autocomplete="off">
+        <input id="telemetry-log-id" type="hidden" />
+        <label class="field">
+          <span>ID de sesion</span>
+          <input id="telemetry-session-id" type="number" min="1" step="1" required placeholder="1" />
+        </label>
+        <label class="field">
+          <span>Tipo de medicion</span>
+          <select id="telemetry-edit-type" required>
+            <option value="FRECUENCIA_CARDIACA">Frecuencia cardiaca</option>
+            <option value="SPO2">SpO2</option>
+            <option value="TEMPERATURA">Temperatura</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Valor</span>
+          <input id="telemetry-value" type="number" step="0.1" required />
+        </label>
+        <label class="field">
+          <span>Calidad</span>
+          <select id="telemetry-edit-quality" required>
+            <option value="VALIDA">Valida</option>
+            <option value="REVISAR">Revisar</option>
+          </select>
+        </label>
+        <label class="field telemetry-date-field">
+          <span>Fecha y hora</span>
+          <input id="telemetry-recorded-at" type="datetime-local" required />
+        </label>
+        <p id="telemetry-form-message" class="hint"></p>
+        <div class="modal-foot telemetry-modal-foot">
+          <button type="button" class="btn ghost" id="telemetry-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn primary" id="btn-telemetry-save">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+            Guardar en Atlas
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260815-4"></script>
 </body>
 </html>

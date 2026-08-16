@@ -147,6 +147,7 @@ body {
     "topology   dashboard"
     "register   register"
     "medicos    medicos"
+    "telemetry  telemetry"
     "expediente expediente"
     "footer     footer";
   gap: 18px;
@@ -182,12 +183,47 @@ body {
   color: var(--text-dim);
 }
 .card-head h2 svg { width: 17px; height: 17px; color: var(--accent); }
+.card-head-actions { display: flex; align-items: center; gap: 10px; }
 
 .topology { grid-area: topology; }
 .dashboard { grid-area: dashboard; }
 .register { grid-area: register; }
 .medicos { grid-area: medicos; }
+.telemetry { grid-area: telemetry; }
 .expediente { grid-area: expediente; }
+
+.telemetry-split { grid-template-columns: minmax(250px, 0.36fr) minmax(0, 1fr); }
+.telemetry-overview { background: #fbfdff; }
+.mongo-status-list { grid-template-columns: 104px minmax(0, 1fr); margin-bottom: 22px; }
+.mongo-status-list dd { word-break: normal; }
+.mongo-status-list.error dd { color: var(--bad); }
+.telemetry-summary { display: grid; gap: 1px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--line); }
+.telemetry-metric { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 11px 12px; background: #fff; }
+.telemetry-metric h4 { margin: 0; font-size: 11px; color: var(--text-dim); }
+.telemetry-total { grid-row: 1 / 3; grid-column: 2; align-self: center; font: 700 16px var(--mono); color: var(--text); }
+.telemetry-range { color: var(--text-mute); font: 11px var(--mono); }
+.telemetry-empty { padding: 20px; text-align: center; color: var(--text-mute); background: #fff; }
+.telemetry-filters { display: grid; grid-template-columns: minmax(100px, .7fr) 1.2fr .8fr auto; gap: 10px; align-items: end; margin-bottom: 10px; }
+.telemetry-table-wrap { padding: 0; border: 1px solid var(--line); border-radius: 8px; max-height: 520px; overflow: auto; }
+.telemetry-table-wrap thead { position: sticky; top: 0; z-index: 1; background: #fff; }
+.telemetry-table-wrap tbody td { padding: 9px 10px; }
+.quality-chip { display: inline-flex; padding: 2px 7px; border-radius: 999px; font: 700 10px var(--mono); }
+.quality-valid { color: var(--good); background: var(--good-soft); }
+.quality-review { color: var(--write); background: var(--write-soft); }
+.table-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; color: var(--text-mute); font-size: 12px; }
+.table-pagination > div { display: flex; gap: 8px; }
+.telemetry-row-actions { display: flex; gap: 5px; justify-content: flex-end; min-width: 64px; }
+.telemetry-row-actions .btn-action { width: 29px; height: 29px; padding: 0; justify-content: center; }
+.telemetry-row-actions .btn-action svg { width: 14px; height: 14px; }
+.telemetry-table-wrap th:last-child,
+.telemetry-table-wrap td:last-child { position: sticky; right: 0; min-width: 82px; background: #fff; box-shadow: -1px 0 var(--line-soft); }
+.telemetry-modal-card { max-width: 620px; }
+.telemetry-edit-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; padding: 20px 22px 0; }
+.telemetry-edit-form .telemetry-date-field,
+.telemetry-edit-form .hint,
+.telemetry-edit-form .telemetry-modal-foot { grid-column: 1 / -1; }
+.telemetry-edit-form .hint { padding: 0; min-height: 18px; }
+.telemetry-modal-foot { margin: 0 -22px; justify-content: flex-end; }
 
 .app-footer {
   grid-area: footer;
@@ -662,6 +698,7 @@ form:not(.form-grid) > .form-actions { margin-top: 10px; }
       "dashboard"
       "register"
       "medicos"
+      "telemetry"
       "expediente"
       "footer";
   }
@@ -670,11 +707,22 @@ form:not(.form-grid) > .form-actions { margin-top: 10px; }
   .split { grid-template-columns: 1fr; }
   .split-col + .split-col { border-left: none; border-top: 1px solid var(--line-soft); }
   .form-grid { grid-template-columns: 1fr; }
+  .telemetry-filters { grid-template-columns: 1fr 1fr; }
   .app-header { flex-direction: column; gap: 12px; align-items: flex-start; }
   .topnav { flex-wrap: wrap; }
   .updated { width: 100%; }
   .footer-note { margin-left: 0; }
   .modal-foot { flex-direction: column; align-items: stretch; }
   .modal-actions { justify-content: flex-end; }
+}
+
+@media (max-width: 560px) {
+  .telemetry-filters { grid-template-columns: 1fr; }
+  .table-pagination { align-items: flex-start; flex-direction: column; }
+  .card-head-actions { align-items: flex-end; flex-direction: column; }
+  .telemetry-edit-form { grid-template-columns: 1fr; }
+  .telemetry-edit-form .telemetry-date-field,
+  .telemetry-edit-form .hint,
+  .telemetry-edit-form .telemetry-modal-foot { grid-column: 1; }
 }
 

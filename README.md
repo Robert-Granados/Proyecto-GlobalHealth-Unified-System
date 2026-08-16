@@ -20,11 +20,13 @@ Arquitectura híbrida para clínicas de Costa Rica, Guatemala y Panamá:
 Se añadió un contenedor `web` (nginx) que sirve un panel en
 `http://localhost:${WEB_PORT:-8090}` y actúa como reverse proxy hacia `api`,
 reemplazando la prueba por consola (`Invoke-RestMethod`/`curl`). El panel
-demuestra en vivo los cuatro recorridos: signos vitales (master/réplica),
+demuestra en vivo cinco recorridos: signos vitales (master/réplica),
 médicos del modelo objeto-relacional (INSERT con tipos compuestos y herencia)
-y expedientes XML validados por SQL Server con el error exacto del motor.
+y expedientes XML validados por SQL Server con el error exacto del motor, además
+del listado, filtros, agregaciones y CRUD de telemetría sobre MongoDB Atlas.
 Endpoints: `/health`, `/health/read`, `/api/dashboard/signos-vitales`,
-`/api/signos-vitales`, `/api/medicos`, `/api/expedientes` (ver
+`/api/signos-vitales`, `/api/medicos`, `/api/expedientes` y
+`/api/telemetria` (ver
 [api/README.md](api/README.md)).
 
 ```powershell
@@ -56,6 +58,7 @@ docker compose run --rm sqlserver-init
 Invoke-RestMethod http://localhost:8080/health/mongo
 Invoke-RestMethod http://localhost:8080/api/telemetria/resumen
 Invoke-RestMethod http://localhost:8080/api/telemetria/paciente/1
+Invoke-RestMethod 'http://localhost:8080/api/telemetria?page=1&limit=20'
 
 Get-Content -Raw .\infra\fragmentacion\02_verificacion.sql |
   docker compose exec -T postgres-coordinador psql -U postgres -d globalhealth_distribuida
@@ -64,6 +67,9 @@ Get-Content -Raw .\infra\fragmentacion\02_verificacion.sql |
 Ver [MongoDB](nosql/mongodb/README.md),
 [fragmentación](infra/fragmentacion/README.md) y
 [nube/costos](docs/04-nube-y-costos.md).
+
+La matriz de requisitos y evidencias pendientes de Atlas está en
+[cumplimiento MongoDB Atlas](docs/05-cumplimiento-mongodb-atlas.md).
 
 La validación XML ocurre exclusivamente dentro de SQL Server. El backend crea
 dos objetos `Pool` distintos y no contiene fallback entre master y réplica.
