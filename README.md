@@ -60,7 +60,8 @@ Invoke-RestMethod http://localhost:8080/api/telemetria/resumen
 Invoke-RestMethod http://localhost:8080/api/telemetria/paciente/1
 Invoke-RestMethod 'http://localhost:8080/api/telemetria?page=1&limit=20'
 
-Get-Content -Raw .\infra\fragmentacion\02_verificacion.sql |
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
+Get-Content -Raw -Encoding UTF8 .\infra\fragmentacion\02_verificacion.sql |
   docker compose exec -T postgres-coordinador psql -U postgres -d globalhealth_distribuida
 ```
 

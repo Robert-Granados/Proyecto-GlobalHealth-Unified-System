@@ -42,9 +42,10 @@ entre tablas hijas) responden con `400`/`409` y el nombre de la restricción.
 Requisito: cargar los scripts del MOR y otorgar acceso al rol de la aplicación:
 
 ```powershell
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
 $archivos = Get-ChildItem .\mor\postgresql\0[1-4]_*.sql | Sort-Object Name
 foreach ($archivo in $archivos) {
-    Get-Content -Raw $archivo.FullName |
+    Get-Content -Raw -Encoding UTF8 $archivo.FullName |
         docker compose exec -T postgres-master psql -v ON_ERROR_STOP=1 -U postgres -d globalhealth
 }
 docker compose exec -T postgres-master psql -U postgres -d globalhealth -c "GRANT USAGE ON SCHEMA gh_tipo, gh_obj TO globalhealth_app; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA gh_obj TO globalhealth_app; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gh_tipo TO globalhealth_app; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gh_obj TO globalhealth_app;"
