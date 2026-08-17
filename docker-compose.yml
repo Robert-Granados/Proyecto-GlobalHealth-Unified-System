@@ -172,6 +172,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?Define POSTGRES_SUPERUSER_PASSWORD in .env}
       POSTGRES_DB: globalhealth_distribuida
       FRAGMENT_DB_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?Define POSTGRES_SUPERUSER_PASSWORD in .env}
+      APP_DB_USER: ${APP_DB_USER:-globalhealth_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}
     ports:
       - "${POSTGRES_COORDINADOR_PORT:-55436}:5432"
     volumes:
@@ -249,6 +251,8 @@ services:
       PORT: "8080"
       DB_WRITE_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-master:5432/globalhealth
       DB_READ_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-replica:5432/globalhealth
+      # Coordinador FDW: la API solo ejecuta SELECT sobre los fragmentos norte/sur.
+      DB_DISTRIBUTED_READ_URL: postgresql://${APP_DB_USER:-globalhealth_app}:${APP_DB_PASSWORD:?Define APP_DB_PASSWORD in .env}@postgres-coordinador:5432/globalhealth_distribuida
       # Capa XML: conexión perezosa a SQL Server (solo la usan /api/expedientes*).
       MSSQL_URL: Server=sqlserver,1433;Database=GlobalHealthXml;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD in .env};Encrypt=true;TrustServerCertificate=true;Connection Timeout=5
       MONGO_URL: mongodb://root:${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD in .env}@mongodb:27017/globalhealth_telemetry?authSource=admin

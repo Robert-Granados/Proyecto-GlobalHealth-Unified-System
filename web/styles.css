@@ -146,6 +146,7 @@ body {
   grid-template-areas:
     "topology   dashboard"
     "register   register"
+    "distributed distributed"
     "medicos    medicos"
     "telemetry  telemetry"
     "expediente expediente"
@@ -188,9 +189,32 @@ body {
 .topology { grid-area: topology; }
 .dashboard { grid-area: dashboard; }
 .register { grid-area: register; }
+.distributed { grid-area: distributed; }
 .medicos { grid-area: medicos; }
 .telemetry { grid-area: telemetry; }
 .expediente { grid-area: expediente; }
+
+.distributed-status {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line-soft);
+  background: #fbfdff;
+}
+.node-status {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.node-status small { display: block; margin-top: 2px; color: var(--text-mute); }
+.distributed-status > .hint { grid-column: 1 / -1; margin: 2px 0 0; }
+.distributed-split { grid-template-columns: 1fr 1fr; }
 
 .telemetry-split { grid-template-columns: minmax(250px, 0.36fr) minmax(0, 1fr); }
 .telemetry-overview { background: #fbfdff; }
@@ -697,6 +721,7 @@ form:not(.form-grid) > .form-actions { margin-top: 10px; }
       "topology"
       "dashboard"
       "register"
+      "distributed"
       "medicos"
       "telemetry"
       "expediente"
@@ -705,6 +730,8 @@ form:not(.form-grid) > .form-actions { margin-top: 10px; }
   .pool-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .split { grid-template-columns: 1fr; }
+  .distributed-status { grid-template-columns: 1fr; }
+  .distributed-status > .hint { grid-column: 1; }
   .split-col + .split-col { border-left: none; border-top: 1px solid var(--line-soft); }
   .form-grid { grid-template-columns: 1fr; }
   .telemetry-filters { grid-template-columns: 1fr 1fr; }

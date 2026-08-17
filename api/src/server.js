@@ -12,6 +12,7 @@ const {
   mongoPatientTrace,
   mongoTelemetrySummary,
   mongoUpdateTelemetry,
+  queryDistributed,
   queryRead,
   queryWrite,
   queryXml,
@@ -76,6 +77,41 @@ function publicError(error, pool) {
   };
 }
 
+async function readDistributedNode(node, table, columns) {
+  try {
+    const result = await queryDistributed(
+      `SELECT ${columns} FROM distribuido.${table} ORDER BY paciente_id`
+    );
+    return { node, ok: true, rows: result.rows };
+  } catch (error) {
+    return {
+      node,
+      ok: false,
+      rows: [],
+      error: { code: error.code || 'CONNECTION_ERROR', message: error.message }
+    };
+  }
+}
+
+function distributedResponse(response, parts, rows, reconstruction) {
+  const nodes = Object.fromEntries(parts.map((part) => [part.node, {
+    ok: part.ok,
+    rowCount: part.rows.length,
+    ...(part.error ? { error: part.error } : {})
+  }]));
+  const available = parts.filter((part) => part.ok).length;
+  const complete = available === parts.length;
+  return sendJson(response, complete ? 200 : 207, {
+    ok: complete,
+    partial: !complete && available > 0,
+    pool: 'DISTRIBUTED_READ',
+    coordinator: 'postgres-coordinador',
+    reconstruction,
+    nodes,
+    rows
+  });
+}
+
 async function handler(request, response) {
   const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
 
@@ -123,6 +159,54 @@ async function handler(request, response) {
     } catch (error) {
       return sendJson(response, 503, publicError(error, 'MONGODB_TELEMETRY'));
     }
+  }
+
+  if (request.method === 'GET' && url.pathname === '/health/distributed') {
+    const parts = await Promise.all([
+      readDistributedNode('norte', 'paciente_norte', 'paciente_id'),
+      readDistributedNode('sur', 'paciente_sur', 'paciente_id')
+    ]);
+    return distributedResponse(response, parts, [], 'HEALTH_CHECK');
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/pacientes-distribuidos/horizontal') {
+    const parts = await Promise.all([
+      readDistributedNode(
+        'norte', 'paciente_norte',
+        "paciente_id, identificacion, nombre, region, 'postgres-norte'::text AS nodo"
+      ),
+      readDistributedNode(
+        'sur', 'paciente_sur',
+        "paciente_id, identificacion, nombre, region, 'postgres-sur'::text AS nodo"
+      )
+    ]);
+    const rows = parts.flatMap((part) => part.rows)
+      .sort((a, b) => Number(a.paciente_id) - Number(b.paciente_id));
+    return distributedResponse(response, parts, rows, 'UNION ALL por región');
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/pacientes-distribuidos/vertical') {
+    const parts = await Promise.all([
+      readDistributedNode(
+        'norte', 'paciente_publico',
+        'paciente_id, nombre, pais, fecha_nacimiento'
+      ),
+      readDistributedNode(
+        'sur', 'paciente_financiero',
+        'paciente_id, aseguradora, numero_poliza, saldo_pendiente'
+      )
+    ]);
+    let rows = [];
+    if (parts.every((part) => part.ok)) {
+      const financialByPatient = new Map(
+        parts[1].rows.map((row) => [String(row.paciente_id), row])
+      );
+      rows = parts[0].rows.flatMap((publicRow) => {
+        const financial = financialByPatient.get(String(publicRow.paciente_id));
+        return financial ? [{ ...publicRow, ...financial }] : [];
+      });
+    }
+    return distributedResponse(response, parts, rows, 'JOIN por paciente_id');
   }
 
   if (request.method === 'GET' && url.pathname === '/api/telemetria') {
