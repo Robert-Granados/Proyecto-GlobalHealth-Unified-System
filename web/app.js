@@ -62,7 +62,15 @@ const els = {
   telemetryEditQuality: document.getElementById('telemetry-edit-quality'),
   telemetryRecordedAt: document.getElementById('telemetry-recorded-at'),
   telemetryFormMessage: document.getElementById('telemetry-form-message'),
-  btnTelemetrySave: document.getElementById('btn-telemetry-save')
+  btnTelemetrySave: document.getElementById('btn-telemetry-save'),
+  distributedBadge: document.getElementById('distributed-badge'),
+  distributedMessage: document.getElementById('distributed-message'),
+  nodeNorthBadge: document.getElementById('node-north-badge'),
+  nodeSouthBadge: document.getElementById('node-south-badge'),
+  nodeNorthDot: document.getElementById('node-north-dot'),
+  nodeSouthDot: document.getElementById('node-south-dot'),
+  distributedHorizontalBody: document.getElementById('distributed-horizontal-body'),
+  distributedVerticalBody: document.getElementById('distributed-vertical-body')
 };
 
 function showToast(message, kind = 'info') {
@@ -176,6 +184,67 @@ async function loadVitals() {
     els.vitalsBody.innerHTML =
       `<tr class="empty-row"><td colspan="4">No se pudo leer (HTTP ${status}): ${escapeHtml(body?.message || '')}</td></tr>`;
   }
+}
+
+/* ---------------- Pacientes distribuidos (postgres_fdw) ---------------- */
+
+function updateDistributedNode(name, state) {
+  const badge = name === 'norte' ? els.nodeNorthBadge : els.nodeSouthBadge;
+  const dot = name === 'norte' ? els.nodeNorthDot : els.nodeSouthDot;
+  setBadge(badge, state?.ok === true, 'EN LÍNEA', 'CAÍDO');
+  dot.classList.toggle('dot-on', state?.ok === true);
+  dot.classList.toggle('dot-off', state?.ok !== true);
+}
+
+function distributedFailures(nodes) {
+  return Object.entries(nodes || {})
+    .filter(([, state]) => !state.ok)
+    .map(([name, state]) => `${name}: ${state.error?.message || 'sin conexión'}`);
+}
+
+async function loadDistributedPatients() {
+  const [horizontal, vertical] = await Promise.all([
+    apiFetch('/api/pacientes-distribuidos/horizontal'),
+    apiFetch('/api/pacientes-distribuidos/vertical')
+  ]);
+  const h = horizontal.body || {};
+  const v = vertical.body || {};
+  const nodes = h.nodes || v.nodes || {};
+  updateDistributedNode('norte', nodes.norte);
+  updateDistributedNode('sur', nodes.sur);
+
+  const complete = horizontal.status === 200 && vertical.status === 200 && h.ok && v.ok;
+  const partial = horizontal.status === 207 || vertical.status === 207;
+  setBadge(els.distributedBadge, complete, 'COMPLETO', partial ? 'DEGRADADO' : 'ERROR');
+
+  const failures = [...new Set([
+    ...distributedFailures(h.nodes), ...distributedFailures(v.nodes)
+  ])];
+  els.distributedMessage.textContent = complete
+    ? 'Coordinador disponible · reconstrucción horizontal y vertical completa.'
+    : `Reconstrucción ${partial ? 'parcial' : 'fallida'} · ${failures.join(' · ') || 'coordinador no disponible'}`;
+
+  els.distributedHorizontalBody.innerHTML = h.rows?.length
+    ? h.rows.map((row) => `<tr>
+        <td>${escapeHtml(row.paciente_id)}</td>
+        <td>${escapeHtml(row.identificacion)}</td>
+        <td><strong>${escapeHtml(row.nombre)}</strong></td>
+        <td>${escapeHtml(row.region)}</td>
+        <td><code>${escapeHtml(row.nodo)}</code></td>
+      </tr>`).join('')
+    : `<tr class="empty-row"><td colspan="5">${escapeHtml(failures[0] || 'Sin pacientes disponibles.')}</td></tr>`;
+
+  els.distributedVerticalBody.innerHTML = v.rows?.length
+    ? v.rows.map((row) => `<tr>
+        <td>${escapeHtml(row.paciente_id)}</td>
+        <td><strong>${escapeHtml(row.nombre)}</strong></td>
+        <td>${escapeHtml(row.pais)}</td>
+        <td>${escapeHtml(row.aseguradora)}</td>
+        <td>${Number(row.saldo_pendiente).toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+      </tr>`).join('')
+    : `<tr class="empty-row"><td colspan="5">${escapeHtml(
+        partial ? 'No se puede ejecutar el JOIN: falta uno de los fragmentos.' : (failures[0] || 'Sin datos.')
+      )}</td></tr>`;
 }
 
 function formatMetric(value, digits = 1) {
@@ -636,7 +705,8 @@ async function loadExpedientes() {
 async function refreshAll() {
   els.btnRefresh.disabled = true;
   const results = await Promise.allSettled([
-    loadHealth(), loadVitals(), loadTelemetry(), loadTelemetryRows(1), loadMedicos(), loadExpedientes()
+    loadHealth(), loadVitals(), loadTelemetry(), loadTelemetryRows(1), loadMedicos(),
+    loadExpedientes(), loadDistributedPatients()
   ]);
   const telemetryError = results.slice(2, 4).find((result) => result.status === 'rejected');
   if (telemetryError) showTelemetryLoadError(telemetryError.reason);

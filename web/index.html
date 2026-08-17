@@ -148,6 +148,57 @@
       <p id="register-message" class="hint">&nbsp;</p>
     </section>
 
+    <!-- Pacientes reconstruidos desde los fragmentos físicos norte y sur -->
+    <section class="card distributed">
+      <header class="card-head">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="3"/><circle cx="19" cy="5" r="3"/><circle cx="19" cy="19" r="3"/><path d="m8 11 8-5M8 13l8 5"/></svg>
+          Pacientes distribuidos · PostgreSQL FDW
+        </h2>
+        <span id="distributed-badge" class="badge badge-neutral">VERIFICANDO</span>
+      </header>
+
+      <div class="distributed-status">
+        <article class="node-status">
+          <span id="node-north-dot" class="dot dot-off"></span>
+          <div><strong>postgres-norte</strong><small>Pacientes norte + datos públicos</small></div>
+          <span id="node-north-badge" class="badge badge-neutral">--</span>
+        </article>
+        <article class="node-status">
+          <span id="node-south-dot" class="dot dot-off"></span>
+          <div><strong>postgres-sur</strong><small>Pacientes sur + datos financieros</small></div>
+          <span id="node-south-badge" class="badge badge-neutral">--</span>
+        </article>
+        <p id="distributed-message" class="hint">Consultando el coordinador distribuido…</p>
+      </div>
+
+      <div class="split distributed-split">
+        <div class="split-col">
+          <h3 class="mini-title">Fragmentación horizontal · <code>UNION ALL</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Identificación</th><th>Paciente</th><th>Región</th><th>Nodo físico</th></tr></thead>
+              <tbody id="distributed-horizontal-body">
+                <tr class="empty-row"><td colspan="5">Sin datos — pulsa Actualizar.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="split-col">
+          <h3 class="mini-title">Fragmentación vertical · <code>JOIN paciente_id</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Paciente</th><th>País</th><th>Aseguradora</th><th>Saldo</th></tr></thead>
+              <tbody id="distributed-vertical-body">
+                <tr class="empty-row"><td colspan="5">Sin datos — pulsa Actualizar.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Médicos: modelo objeto-relacional -->
     <section class="card medicos">
       <header class="card-head">

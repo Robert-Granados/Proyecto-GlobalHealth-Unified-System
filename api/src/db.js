@@ -14,6 +14,7 @@ function requiredEnvironment(name) {
 
 const writeConnectionString = requiredEnvironment('DB_WRITE_URL');
 const readConnectionString = requiredEnvironment('DB_READ_URL');
+const distributedReadConnectionString = requiredEnvironment('DB_DISTRIBUTED_READ_URL');
 
 if (writeConnectionString === readConnectionString) {
   throw new Error('DB_WRITE_URL y DB_READ_URL no pueden apuntar a la misma conexión');
@@ -37,12 +38,28 @@ const readPool = new Pool({
   idleTimeoutMillis: 30000
 });
 
+// Pool independiente y de solo lectura hacia el coordinador postgres_fdw.
+// Las consultas de cada fragmento se hacen por separado para poder informar
+// exactamente que nodo no esta disponible durante la demostracion.
+const distributedReadPool = new Pool({
+  connectionString: distributedReadConnectionString,
+  application_name: 'globalhealth-api-distributed-read',
+  max: 4,
+  connectionTimeoutMillis: 2000,
+  idleTimeoutMillis: 30000,
+  statement_timeout: 5000
+});
+
 writePool.on('error', (error) => {
   console.error('[writePool] Error de conexión inactiva:', error.message);
 });
 
 readPool.on('error', (error) => {
   console.error('[readPool] Error de conexión inactiva:', error.message);
+});
+
+distributedReadPool.on('error', (error) => {
+  console.error('[distributedReadPool] Error de conexión inactiva:', error.message);
 });
 
 async function inspectPool(pool, expectedRole) {
@@ -130,6 +147,10 @@ function queryWrite(text, parameters = []) {
 
 function queryRead(text, parameters = []) {
   return readPool.query(text, parameters);
+}
+
+function queryDistributed(text, parameters = []) {
+  return distributedReadPool.query(text, parameters);
 }
 
 // Conexión perezosa a SQL Server (capa XML). No forma parte de la topología
@@ -346,11 +367,14 @@ async function closePools() {
   const mongoClose = mongoClientPromise
     ? mongoClientPromise.then((client) => client.close()).catch(() => {})
     : Promise.resolve();
-  await Promise.allSettled([writePool.end(), readPool.end(), xmlClose, mongoClose]);
+  await Promise.allSettled([
+    writePool.end(), readPool.end(), distributedReadPool.end(), xmlClose, mongoClose
+  ]);
 }
 
 module.exports = {
   closePools,
+  distributedReadPool,
   ensureDemoData,
   inspectPool,
   inspectMongo,
@@ -361,6 +385,7 @@ module.exports = {
   mongoTelemetrySummary,
   mongoUpdateTelemetry,
   queryRead,
+  queryDistributed,
   queryWrite,
   queryXml,
   readPool,

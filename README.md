@@ -69,6 +69,24 @@ Ver [MongoDB](nosql/mongodb/README.md),
 [fragmentación](infra/fragmentacion/README.md) y
 [nube/costos](docs/04-nube-y-costos.md).
 
+### Demostración de fragmentación desde el dashboard
+
+El panel consume el coordinador FDW mediante endpoints de solo lectura:
+
+- `GET /api/pacientes-distribuidos/horizontal`
+- `GET /api/pacientes-distribuidos/vertical`
+- `GET /health/distributed`
+
+Para demostrar una caída controlada, abre `http://localhost:8090`, apaga un
+nodo y pulsa **Actualizar**:
+
+```powershell
+docker compose stop postgres-sur
+# El panel conserva Norte, marca Sur como CAÍDO y bloquea el JOIN vertical.
+docker compose start postgres-sur
+# Pulsa Actualizar: ambos nodos vuelven a EN LÍNEA.
+```
+
 La matriz de requisitos y evidencias pendientes de Atlas está en
 [cumplimiento MongoDB Atlas](docs/05-cumplimiento-mongodb-atlas.md).
 

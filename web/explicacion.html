@@ -204,9 +204,10 @@
       </div>
       <div class="card">
         <h3><span class="tag node">Node.js API</span> La puerta de entrada</h3>
-        <p>Un backend pequeño con <b>dos conexiones físicas separadas</b>:
+        <p>Un backend pequeño con <b>tres conexiones físicas separadas</b>:
         una exclusiva para escribir en el master y otra exclusiva para leer de
-        la réplica. <b>Sin fallback</b> entre ellas.</p>
+        la réplica, más una de solo lectura hacia el coordinador distribuido.
+        <b>Sin fallback</b> entre master y réplica.</p>
       </div>
     </div>
   </section>
@@ -223,7 +224,7 @@
         <span class="dlabel">Usuario</span>
         <div class="node"><b>Panel web (nginx)</b><span>puerto 8090 · interfaz + proxy</span></div>
         <span class="arrow">→</span>
-        <div class="node"><b>API Node.js</b><span>puerto 8080 · 2 pools físicos</span></div>
+        <div class="node"><b>API Node.js</b><span>puerto 8080 · 3 pools físicos</span></div>
       </div>
       <div class="drow">
         <span class="dlabel">Escritura</span>
@@ -238,6 +239,14 @@
         <div class="node read"><b>Dashboard</b><span>consulta siempre a la réplica</span></div>
       </div>
       <div class="drow">
+        <span class="dlabel">Fragmentación</span>
+        <div class="node read"><b>Coordinador FDW</b><span>:56436 · pool de solo lectura</span></div>
+        <span class="arrow">→</span>
+        <div class="node read"><b>Nodo Norte</b><span>:56434 · región norte + datos públicos</span></div>
+        <span class="arrow">+</span>
+        <div class="node read"><b>Nodo Sur</b><span>:56435 · región sur + datos financieros</span></div>
+      </div>
+      <div class="drow">
         <span class="dlabel">Otros datos</span>
         <div class="node sqlx"><b>SQL Server</b><span>:14333 · expedientes XML + XSD</span></div>
         <div class="node mgx"><b>MongoDB Atlas</b><span>TLS · globalhealth_telemetry</span></div>
@@ -247,7 +256,7 @@
 
   <!-- ===================== 3. FLUJOS ===================== -->
   <section>
-    <h2><span class="num">3</span> ¿Cómo funciona? Cinco flujos</h2>
+    <h2><span class="num">3</span> ¿Cómo funciona? Seis flujos</h2>
     <p class="sub">El recorrido completo de un dato, paso a paso.</p>
 
     <div class="tabs" role="tablist">
@@ -256,6 +265,7 @@
       <button class="tab" data-flow="f3" type="button">C · Validar un expediente XML</button>
       <button class="tab" data-flow="f4" type="button">D · Registrar un médico</button>
       <button class="tab" data-flow="f5" type="button">E · Telemetría Atlas</button>
+      <button class="tab" data-flow="f6" type="button">F · Pacientes distribuidos</button>
     </div>
 
     <div class="flow active" id="f1">
@@ -348,6 +358,30 @@
         </div>
       </div>
     </div>
+
+    <div class="flow" id="f6">
+      <div class="card">
+        <ol class="steps">
+          <li>El panel consulta los endpoints horizontal y vertical mediante el pool
+              <code>DISTRIBUTED_READ</code>, conectado a <b>postgres-coordinador</b>.</li>
+          <li>El coordinador accede mediante <code>postgres_fdw</code> a las tablas foráneas
+              alojadas físicamente en <b>postgres-norte</b> y <b>postgres-sur</b>.</li>
+          <li>La fragmentación horizontal reconstruye pacientes con <code>UNION ALL</code>:
+              Norte aporta su región y Sur aporta la suya.</li>
+          <li>La fragmentación vertical une datos públicos de Norte con datos financieros
+              de Sur usando la llave idéntica <code>paciente_id</code>.</li>
+          <li>La API consulta cada nodo por separado. Si uno cae responde
+              <code>207 Multi-Status</code>, conserva las filas disponibles e identifica
+              exactamente el fragmento que no respondió.</li>
+          <li>El dashboard marca cada nodo como <b>EN LÍNEA</b> o <b>CAÍDO</b>. El JOIN
+              vertical se bloquea si falta una mitad, mientras el resto del sistema continúa.</li>
+        </ol>
+        <div class="callout ok">
+          La conexión del backend usa el rol <code>globalhealth_app</code> con permiso
+          <code>SELECT</code> y sin permiso <code>INSERT</code> sobre los fragmentos.
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ===================== 4. CONTROLES ===================== -->
@@ -362,6 +396,15 @@
           <p>Al arrancar, la API exige <code>pg_is_in_recovery()=false</code> en el pool de
           escritura y <code>=true</code> en el de lectura, y que ambos resuelvan
           <b>direcciones físicas distintas</b>. Si no, el proceso aborta.</p>
+        </div>
+      </div>
+      <div class="card control">
+        <span class="ico" style="background:var(--pg)">FDW</span>
+        <div>
+          <h3>Degradación distribuida explícita</h3>
+          <p>Norte y Sur se consultan de forma independiente. Una caída devuelve
+          <code>207 Multi-Status</code>, identifica el nodo afectado y evita presentar
+          como completa una reconstrucción vertical incompleta.</p>
         </div>
       </div>
       <div class="card control">
@@ -423,9 +466,40 @@ docker compose run --rm sqlserver-init
     </div>
   </section>
 
-  <!-- ===================== 6. ENDPOINTS ===================== -->
+  <!-- ===================== 6. DEMOSTRACIÓN ===================== -->
   <section>
-    <h2><span class="num">6</span> Endpoints de la API</h2>
+    <h2><span class="num">6</span> Guion de demostración de fragmentación</h2>
+    <p class="sub">Prueba funcional corta para la defensa: estado completo, caída visible y recuperación.</p>
+    <div class="card">
+      <ol class="steps">
+        <li>Abre <code>http://localhost:8090</code> y ubica
+            <b>“Pacientes distribuidos · PostgreSQL FDW”</b>.</li>
+        <li>Comprueba que Norte y Sur estén <b>EN LÍNEA</b>: la tabla horizontal muestra
+            ambos nodos y la vertical muestra datos públicos más financieros.</li>
+        <li>Ejecuta <code>docker compose stop postgres-sur</code> y pulsa
+            <b>Actualizar</b> en el panel.</li>
+        <li>Explica el resultado: estado <b>DEGRADADO</b>, Sur <b>CAÍDO</b>, pacientes de
+            Norte todavía visibles y JOIN vertical bloqueado porque falta la mitad financiera.</li>
+        <li>Muestra que médicos, telemetría y expedientes siguen funcionando: la caída está
+            aislada al módulo distribuido.</li>
+        <li>Ejecuta <code>docker compose start postgres-sur</code>, espera que inicie y pulsa
+            <b>Actualizar</b>. Ambos nodos regresan a <b>EN LÍNEA</b>.</li>
+      </ol>
+    </div>
+    <pre><span class="c"># Provocar degradación controlada</span>
+docker compose stop postgres-sur
+
+<span class="c"># Restaurar el fragmento y reconstruir nuevamente</span>
+docker compose start postgres-sur</pre>
+    <div class="callout">
+      <b>Mensaje para la defensa:</b> la fragmentación no es una maqueta. El dashboard
+      consume ambos nodos a través de la API y hace visible la pérdida de un fragmento.
+    </div>
+  </section>
+
+  <!-- ===================== 7. ENDPOINTS ===================== -->
+  <section>
+    <h2><span class="num">7</span> Endpoints de la API</h2>
     <p class="sub">Rutas públicas del backend y motor físico que atiende cada operación.</p>
     <table>
       <thead><tr><th>Ruta</th><th>Método</th><th>Pool que la atiende</th></tr></thead>
@@ -433,6 +507,9 @@ docker compose run --rm sqlserver-init
         <tr><td><code>/health</code></td><td>GET</td><td>Comprueba <b>ambos</b> pools y reporta si están físicamente separados</td></tr>
         <tr><td><code>/health/read</code></td><td>GET</td><td>Réplica (readPool)</td></tr>
         <tr><td><code>/health/mongo</code></td><td>GET</td><td>MongoDB Atlas · ping y conteos de las tres colecciones</td></tr>
+        <tr><td><code>/health/distributed</code></td><td>GET</td><td>Coordinador FDW · estado independiente de Norte y Sur</td></tr>
+        <tr><td><code>/api/pacientes-distribuidos/horizontal</code></td><td>GET</td><td>Coordinador FDW · reconstrucción <code>UNION ALL</code> por región</td></tr>
+        <tr><td><code>/api/pacientes-distribuidos/vertical</code></td><td>GET</td><td>Coordinador FDW · reconstrucción <code>JOIN</code> por <code>paciente_id</code></td></tr>
         <tr><td><code>/api/telemetria</code></td><td>GET</td><td>MongoDB Atlas · lista paginada y filtros</td></tr>
         <tr><td><code>/api/telemetria/resumen</code></td><td>GET</td><td>MongoDB Atlas · agregación por tipo</td></tr>
         <tr><td><code>/api/telemetria/paciente/:id</code></td><td>GET</td><td>MongoDB Atlas · dos <code>$lookup</code></td></tr>
